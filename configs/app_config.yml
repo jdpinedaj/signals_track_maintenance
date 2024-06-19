@@ -1,0 +1,15 @@
+time_vector_params:
+  sampling_frequency_tvp: 3200 # Sampling frequency in Hz
+  cutoff_frequency: 10 # Cutoff frequency in Hz
+  new_sampling_frequency: 100 # New sampling frequency in Hz
+
+
+feature_extraction_time_stft:
+  window_length: 0.25  # Window length in seconds
+  overlap: 0.125  # Overlap percentage
+  gamma: 20  # Dynamic margin in decibels
+  sampling_frequency_stft_raw: 3200  # Sampling frequency in Hz. 100 for sampled data, 3200 for raw data
+  sampling_frequency_stft_prepared: 100  # Sampling frequency in Hz. 100 for sampled data, 3200 for raw data
+
+dev_comments:
+  save_logs: True
