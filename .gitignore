@@ -76,7 +76,6 @@ README.docx
 poetry.lock
 pyproject.toml
 
-# sh files
 
 # extensions
 .vscode
@@ -88,18 +87,5 @@ pyproject.toml
 *.key
 *.pub
 
-# tests
-lambda_package/
-function.zip
-previous_versions/
-js/
-
-# Docs
-docs/*
-!docs/2402.08064.pdf
-
-# cloning for s3
-tpp-text2sql/
-
-# tests
-test_llm_langchain.py
+# archive
+src/archive
