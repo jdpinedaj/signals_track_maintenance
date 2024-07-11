@@ -9,7 +9,20 @@ import matplotlib.pyplot as plt
 from scipy.io import loadmat
 from scipy.signal import butter, filtfilt, stft
 from scipy.signal.windows import hamming
-from typing import Tuple, Optional, NoReturn
+from typing import Tuple, Optional, NoReturn, List
+
+# New imports (test supervised contrastive learning)
+import torch
+from torch.utils.data import DataLoader
+
+# Additional imports for supervised contrastive learning
+from .anomaly_detection.REFACTORED_supervised_contrastive_learning import (
+    RailwayDataset,
+    ResNetEncoder,
+    PrototypicalNetwork,
+    train_prototypical_network,
+    evaluate_model,
+)
 
 
 # Local Imports
@@ -269,6 +282,7 @@ def short_term_fourier_transform_stft(
         np.arange(num_samples) / sampling_frequency_stft + start_time
     )  # Adjusted time vector (s)
     logger.info(f"Total time: {total_time}")
+
     # Compute STFT
     window_samples = int(
         window_length * sampling_frequency_stft
@@ -280,8 +294,9 @@ def short_term_fourier_transform_stft(
             "window_length too small resulting in non-positive integer window_samples"
         )
 
-    noverlap = int(overlap * sampling_frequency_stft)  # Number of overlapping samples
+    noverlap = int(overlap * window_samples)  # Number of overlapping samples
     logger.info(f"Overlap: {noverlap}")
+
     if noverlap >= window_samples:
         raise ValueError("overlap is too high, resulting in noverlap >= window_samples")
 
@@ -368,3 +383,57 @@ def plot_stft_results(
     # Adjust layout
     plt.tight_layout()
     plt.show()
+
+
+#! ---- NEW FUNCTIONS - TBD ----
+def prepare_dataset_for_training(
+    data_path: str, items: List[str], input_shape: Tuple[int, int, int]
+) -> RailwayDataset:
+    dataset = RailwayDataset(
+        dir_dataset=data_path, items=items, input_shape=input_shape
+    )
+    dataset.label_cruces_adif()
+    return dataset
+
+
+def create_dataloader(
+    dataset: RailwayDataset, batch_size: int, shuffle: bool = True
+) -> DataLoader:
+    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+
+
+def initialize_model(
+    input_channels: int,
+    n_blocks: int,
+    projection_dim: int,
+    n_classes: int,
+    pretrained: bool = False,
+) -> PrototypicalNetwork:
+    encoder = ResNetEncoder(
+        in_channels=input_channels, n_blocks=n_blocks, pretrained=pretrained
+    )
+    model = PrototypicalNetwork(
+        encoder=encoder,
+        projection_dim=projection_dim,
+        n_classes=n_classes,
+        contrastive_loss=True,
+    )
+    return model
+
+
+def run_training(
+    model: PrototypicalNetwork,
+    train_loader: DataLoader,
+    epochs: int,
+    learning_rate: float,
+    device: torch.device,
+) -> Tuple[List[float], List[float], List[float], List[float]]:
+    return train_prototypical_network(
+        model, train_loader, epochs, learning_rate, device
+    )
+
+
+def run_evaluation(
+    model: PrototypicalNetwork, test_loader: DataLoader, device: torch.device
+) -> Tuple[float, float, float, float, np.ndarray]:
+    return evaluate_model(model, test_loader, device)
