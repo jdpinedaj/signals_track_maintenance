@@ -5,8 +5,8 @@ time_vector_params:
 
 
 feature_extraction_time_stft:
-  window_length: 0.25  # Window length in seconds
-  overlap: 0.125  # Overlap percentage
+  window_length: 0.25  # Window length in seconds (according to paper, it is 0.25)
+  overlap: 0.95  # Overlap percentage (according to paper, it is 0.95)
   gamma: 20  # Dynamic margin in decibels
   sampling_frequency_stft_raw: 3200  # Sampling frequency in Hz. 100 for sampled data, 3200 for raw data
   sampling_frequency_stft_prepared: 100  # Sampling frequency in Hz. 100 for sampled data, 3200 for raw data
