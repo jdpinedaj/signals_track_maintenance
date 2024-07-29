@@ -1,15 +1,19 @@
+data_to_analyze:
+  acceleration_to_analyze: "acc_lat_axle_box_ms2" # OPTIONS: "acc_vert_left_axle_box_ms2", "acc_vert_right_axle_box_ms2", "acc_lat_axle_box_ms2",
+
 time_vector_params:
   sampling_frequency_tvp: 3200 # Sampling frequency in Hz
   cutoff_frequency: 10 # Cutoff frequency in Hz
   new_sampling_frequency: 100 # New sampling frequency in Hz
 
-
-feature_extraction_time_stft:
+features_stft:
   window_length: 0.25  # Window length in seconds (according to paper, it is 0.25)
   overlap: 0.95  # Overlap percentage (according to paper, it is 0.95)
   gamma: 20  # Dynamic margin in decibels
   sampling_frequency_stft_raw: 3200  # Sampling frequency in Hz. 100 for sampled data, 3200 for raw data
+  nfft_raw: 4096 #* O 1024 si esta tardando mucho en el analisis de deteccion de anomalos
   sampling_frequency_stft_prepared: 100  # Sampling frequency in Hz. 100 for sampled data, 3200 for raw data
+  nfft_prepared: 128 #* O 32 si esta tardando mucho en el analisis de deteccion de anomalos
 
 dev_comments:
   save_logs: True

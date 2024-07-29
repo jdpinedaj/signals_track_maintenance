@@ -256,6 +256,7 @@ def short_term_fourier_transform_stft(
     overlap: float,
     gamma: float,
     time_column: pd.Series,
+    nfft: float,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Compute the Short-Term Fourier Transform (STFT) of a signal.
@@ -266,6 +267,7 @@ def short_term_fourier_transform_stft(
         overlap (float): Overlap fraction.
         gamma (float): Dynamic margin.
         time_column (pandas.Series): Time column.
+        nfft (float): Length of the FFT used.
     Returns:
         frequencies (numpy.ndarray): Frequency vector.
         times (numpy.ndarray): Time vector.
@@ -307,6 +309,7 @@ def short_term_fourier_transform_stft(
         window=window,
         nperseg=window_samples,
         noverlap=noverlap,
+        nfft=nfft,
     )
     times += start_time  # Adjust the time vector of the STFT output
 
