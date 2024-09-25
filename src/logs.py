@@ -1,15 +1,9 @@
 from datetime import datetime
 import logging
 import time
-import yaml
-from pyprojroot import here
+from src.load_config import LoadConfig
 
-
-#! Load Parameters
-with open(here("configs/app_config.yml")) as cfg:
-    app_config = yaml.load(cfg, Loader=yaml.FullLoader)
-
-save_logs = app_config["dev_comments"]["save_logs"]
+APPCFG = LoadConfig()
 
 CURRENT_DATE_Y_M_D_T_H_M_S = datetime.now().strftime("%Y-%m-%dT%H%M%S")
 LOGGING_ENV_EQUIVALENCE = {
@@ -62,7 +56,7 @@ def create_logger() -> logging.Logger:
     default_logger.addHandler(stream_handler)
 
     # Check if logs should be saved to file
-    if save_logs:
+    if APPCFG.save_logs:
         # Create file handler with its specific log level
         file_handler = logging.FileHandler(
             f"logs/signal_track_maintenance_{CURRENT_DATE_Y_M_D_T_H_M_S}.log"

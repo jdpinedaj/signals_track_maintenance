@@ -52,6 +52,10 @@ Thumbs.db
 # notebooks
 .ipynb_checkpoints/
 notebooks/*
+!notebooks/1_test_short_term_fourier_transform.ipynb
+!notebooks/2_test_anomaly_detection_numerical.ipynb
+!notebooks/3_calculate_anomalies_kmeans.ipynb
+!notebooks/4_test_functions_anomalies.ipynb
 
 # Cache
 .cache/

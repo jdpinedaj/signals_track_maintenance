@@ -13,6 +13,7 @@ from sklearn.metrics import (
     confusion_matrix,
 )
 from typing import Tuple, List
+from src.logs import logger
 
 
 # ---- DATA LOADER ----
@@ -251,7 +252,7 @@ def train_prototypical_network(
         train_recall.append(recall)
         train_f1.append(f1)
 
-        print(
+        logger.info(
             f"Epoch {epoch+1}/{epochs} - Loss: {epoch_loss:.4f}, Accuracy: {epoch_accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}"
         )
 
