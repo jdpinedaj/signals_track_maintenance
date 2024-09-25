@@ -12,7 +12,7 @@ from scipy.signal import stft
 from typing import Tuple
 
 # Local Imports
-from ..logs import logger
+from src.logs import logger
 
 
 def extract_features(signal: np.ndarray, sampling_frequency: float) -> pd.DataFrame:

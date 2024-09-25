@@ -9,20 +9,23 @@ import matplotlib.pyplot as plt
 from scipy.io import loadmat
 from scipy.signal import butter, filtfilt, stft
 from scipy.signal.windows import hamming
-from typing import Tuple, Optional, NoReturn, List
+from typing import Tuple, Optional, NoReturn
+from sklearn.decomposition import PCA, TruncatedSVD
+from sklearn.cluster import MiniBatchKMeans, KMeans
+from sklearn.preprocessing import StandardScaler
 
 # New imports (test supervised contrastive learning)
-import torch
-from torch.utils.data import DataLoader
+# import torch
+# from torch.utils.data import DataLoader
 
 # Additional imports for supervised contrastive learning
-from .anomaly_detection.REFACTORED_supervised_contrastive_learning import (
-    RailwayDataset,
-    ResNetEncoder,
-    PrototypicalNetwork,
-    train_prototypical_network,
-    evaluate_model,
-)
+# from src.anomaly_detection.REFACTORED_supervised_contrastive_learning import (
+#     RailwayDataset,
+#     ResNetEncoder,
+#     PrototypicalNetwork,
+#     train_prototypical_network,
+#     evaluate_model,
+# )
 
 
 # Local Imports
@@ -136,6 +139,7 @@ def preprocess_mat_data(
         # Create a DataFrame
         df = pd.DataFrame(data[key_f20_10][0], columns=column_names)
 
+        # Extract the signal and time_column
         signal = df[acel_to_process]
         time_column = df[time_col_name]
 
@@ -256,6 +260,7 @@ def short_term_fourier_transform_stft(
     overlap: float,
     gamma: float,
     time_column: pd.Series,
+    nfft: float,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Compute the Short-Term Fourier Transform (STFT) of a signal.
@@ -266,6 +271,7 @@ def short_term_fourier_transform_stft(
         overlap (float): Overlap fraction.
         gamma (float): Dynamic margin.
         time_column (pandas.Series): Time column.
+        nfft (float): Length of the FFT used.
     Returns:
         frequencies (numpy.ndarray): Frequency vector.
         times (numpy.ndarray): Time vector.
@@ -299,21 +305,23 @@ def short_term_fourier_transform_stft(
 
     if noverlap >= window_samples:
         raise ValueError("overlap is too high, resulting in noverlap >= window_samples")
-
     window = hamming(window_samples)  # Hamming window
+
+    # STFT calculation
     frequencies, times, Zxx = stft(
         signal,
         fs=sampling_frequency_stft,
         window=window,
         nperseg=window_samples,
         noverlap=noverlap,
+        nfft=nfft,
     )
-    times += start_time  # Adjust the time vector of the STFT output
 
-    # Convert to magnitude spectrogram
-    magnitude_spectrogram = np.abs(Zxx)
+    # Adjust the times based on start_time
+    times += start_time
 
     # Dynamic-margin normalization
+    magnitude_spectrogram = np.abs(Zxx)
     epsilon = 10 ** (-gamma / 20)  # Dynamic margin. Default is 20 dB
     X_prime = (
         20
@@ -385,55 +393,253 @@ def plot_stft_results(
     plt.show()
 
 
-#! ---- NEW FUNCTIONS - TBD ----
-def prepare_dataset_for_training(
-    data_path: str, items: List[str], input_shape: Tuple[int, int, int]
-) -> RailwayDataset:
-    dataset = RailwayDataset(
-        dir_dataset=data_path, items=items, input_shape=input_shape
-    )
-    dataset.label_cruces_adif()
-    return dataset
+
+def preprocess_and_reduce(magnitude_spectrogram, n_components=10):
+    """
+    Preprocess the magnitude spectrogram and reduce its dimensionality using PCA.
+    This function takes a magnitude spectrogram as input, transposes it, and applies
+    Principal Component Analysis (PCA) to reduce its dimensionality. The reduced features
+    are then scaled using StandardScaler.
+    Args:
+        magnitude_spectrogram (numpy.ndarray): The input magnitude spectrogram.
+        n_components (int, optional): The number of principal components to keep. Default is 10.
+
+    Returns:
+        numpy.ndarray: The scaled and reduced features.
+    """
+    spectrogram_2d = magnitude_spectrogram.T
+    pca = PCA(n_components=n_components, random_state=42)
+    reduced_features = pca.fit_transform(spectrogram_2d)
+    scaler = StandardScaler()
+    reduced_features_scaled = scaler.fit_transform(reduced_features)
+    return reduced_features_scaled
+
+def find_optimal_clusters(reduced_features_scaled, max_k):
+    """
+    Find the optimal number of clusters using the elbow method.
+    This function calculates the inertia scores for a range of cluster numbers
+    and identifies the optimal number of clusters by finding the point where
+    the second derivative of the inertia scores is maximized (elbow point).
+    Args:
+        reduced_features_scaled (numpy.ndarray): Scaled and reduced feature data.
+        max_k (int): Maximum number of clusters to consider.
+
+    Returns:
+        int: Optimal number of clusters.
+    """
+
+    num_clusters = list(range(2, max_k + 1))
+    inertia_scores = []
+    
+    for n_clusters in num_clusters:
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        kmeans.fit(reduced_features_scaled)
+        inertia_scores.append(kmeans.inertia_)
+    
+    # Calculate the first and second derivatives
+    first_derivative = np.diff(inertia_scores)
+    second_derivative = np.diff(first_derivative)
+    
+    # The elbow point is where the second derivative is maximized
+    best_num_clusters = num_clusters[np.argmax(second_derivative) + 2]
+    
+    # Plot the inertia scores
+    plt.figure(figsize=(10, 6))
+    plt.plot(num_clusters, inertia_scores)
+    plt.xlabel("Number of Clusters")
+    plt.ylabel("Inertia Score")
+    plt.title("Inertia Score vs. Number of Clusters")
+    plt.vlines(best_num_clusters, plt.ylim()[0], plt.ylim()[1], linestyles='dashed', colors='r', label='Optimal k')
+    plt.legend()
+    plt.show()
+    
+    return best_num_clusters
+
+def apply_MiniBatchKMeans(data, n_clusters):
+    """
+    Apply MiniBatchKMeans clustering to the data.
+    This function applies the MiniBatchKMeans clustering algorithm to the input data
+    and returns the trained MiniBatchKMeans model along with the cluster labels for
+    each data point.
+    Args:
+        data (numpy.ndarray): Input data to be clustered.
+        n_clusters (int): Number of clusters to form.
+
+    Returns:
+        MiniBatchKMeans: Trained MiniBatchKMeans model.
+        numpy.ndarray: Cluster labels for each data point.
+    """
+    mbkmeans = MiniBatchKMeans(n_clusters=n_clusters, random_state=42)
+    labels = mbkmeans.fit_predict(data)
+    return mbkmeans, labels
+
+def identify_anomalies_kmeans(data, mbkmeans, threshold=1.5):
+    """
+    Identify anomalies using K-means clustering.
+    This function identifies anomalies in the data by applying the MiniBatchKMeans
+    clustering algorithm and calculating the distance of each data point to the nearest
+    cluster center. Data points with distances greater than a specified threshold are
+    considered anomalies.
+    Args:
+        data (numpy.ndarray): Input data to be clustered.
+        mbkmeans (MiniBatchKMeans): Trained MiniBatchKMeans model.
+        threshold (float, optional): Threshold for identifying anomalies. Default is 1.5.
+
+    Returns:
+        numpy.ndarray: Boolean array indicating anomalies.
+    """
+    distances = mbkmeans.transform(data).min(axis=1)
+    threshold = np.percentile(distances, 95)
+    anomalies = distances > threshold
+    return anomalies
+
+def plot_clusters_and_anomalies_kmeans(times, data, labels, anomalies):
+    """
+    Plot clustering results and anomalies based on K-means clustering.
+    This function visualizes the clustering results and identified anomalies
+    using a scatter plot. Each data point is colored according to its cluster
+    assignment, and anomalies are highlighted with red 'x' markers.
+    Args:
+        times (numpy.ndarray): Array of time values for x-axis
+        data (numpy.ndarray): Input data, where each row is a data point
+        labels (numpy.ndarray): Cluster labels for each data point
+        anomalies (numpy.ndarray): Boolean array indicating anomalies
+    
+    Returns:
+        None: This function only produces a plot and does not return any value
+    """
+    plt.figure(figsize=(12, 6))
+    scatter = plt.scatter(times, data[:, 0], c=labels, cmap='viridis', alpha=0.5)
+    plt.scatter(times[anomalies], data[anomalies, 0], color='red', marker='x', label='Anomalies')
+    plt.colorbar(scatter, label='Cluster')
+    plt.xlabel("Time")
+    plt.ylabel("Distance to nearest cluster center")
+    plt.title("K-means Clustering and Anomaly Detection")
+    plt.legend()
+    plt.show()
 
 
-def create_dataloader(
-    dataset: RailwayDataset, batch_size: int, shuffle: bool = True
-) -> DataLoader:
-    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+def identify_anomalies_distance(data):
+    """
+    Identify anomalies based on distance from the mean spectrum.
+    This function calculates the mean spectrum of the input data and then
+    computes the Euclidean distance of each data point from this mean.
+    Anomalies are identified as data points whose distance from the mean
+    exceeds a threshold, defined as the mean distance plus two standard
+    deviations.
+    Args:
+        data (numpy.ndarray): Input data, where each row represents a spectrum.
+
+    Returns:
+        tuple: A tuple containing three numpy.ndarray:
+            - distances_from_mean: Array of distances from the mean spectrum.
+            - threshold: The threshold value used for anomaly detection.
+            - anomalies: Boolean array indicating which data points are anomalies.
+    """
+    mean_spectrum = np.mean(data, axis=0)
+    distances_from_mean = np.linalg.norm(data - mean_spectrum, axis=0)
+    threshold = np.mean(distances_from_mean) + 2 * np.std(distances_from_mean)
+    anomalies = distances_from_mean > threshold
+
+    return distances_from_mean, threshold, anomalies
 
 
-def initialize_model(
-    input_channels: int,
-    n_blocks: int,
-    projection_dim: int,
-    n_classes: int,
-    pretrained: bool = False,
-) -> PrototypicalNetwork:
-    encoder = ResNetEncoder(
-        in_channels=input_channels, n_blocks=n_blocks, pretrained=pretrained
-    )
-    model = PrototypicalNetwork(
-        encoder=encoder,
-        projection_dim=projection_dim,
-        n_classes=n_classes,
-        contrastive_loss=True,
-    )
-    return model
+
+def plot_clusters_and_anomalies_distance(times, anomalies, distances_from_mean, threshold):
+    """
+    Plot clustering results and anomalies based on distance from mean.
+    Args:
+        times (numpy.ndarray): Time array
+        anomalies (numpy.ndarray): Boolean array indicating anomalies
+        distances_from_mean (numpy.ndarray): Array of distances from mean
+        threshold (float): Threshold for anomaly detection
+    
+    Returns:
+        None
+    """
+    plt.figure(figsize=(12, 6))
+    plt.plot(times, distances_from_mean)
+    plt.scatter(times[anomalies], distances_from_mean[anomalies], c='red', marker='x')
+    plt.axhline(threshold, color='r', linestyle='--', label='Threshold')
+    plt.xlabel("Time")
+    plt.ylabel("Distance from Mean")
+    plt.title("Distance from Mean and Anomalies")
+    plt.legend()
+    plt.show()
+
+def save_anomalies_to_csv(anomalies, times, frequencies, filename):
+    """
+    Save identified anomalies to a CSV file.
+    Args:
+        anomalies (numpy.ndarray): Boolean array indicating anomalies
+        times (numpy.ndarray): Array of time values
+        frequencies (numpy.ndarray): Array of frequency values
+        filename (str): Name of the CSV file to save the anomalies
+
+    Returns:
+        None
+    """
+    anomaly_indices = np.where(anomalies)[0]
+    anomaly_times = times[anomaly_indices]
+    anomaly_frequencies = frequencies[anomaly_indices % len(frequencies)]
+    
+    df = pd.DataFrame({
+        'Anomaly_Index': anomaly_indices,
+        'Anomaly_Time': anomaly_times,
+        'Anomaly_Frequency': anomaly_frequencies
+    })
+    df.to_csv(filename, index=False)
+    print(f"Anomalies saved to '{filename}'")
+
+# #! ---- NEW FUNCTIONS - TBD ----
+# def prepare_dataset_for_training(
+#     data_path: str, items: List[str], input_shape: Tuple[int, int, int]
+# ) -> RailwayDataset:
+#     dataset = RailwayDataset(
+#         dir_dataset=data_path, items=items, input_shape=input_shape
+#     )
+#     dataset.label_cruces_adif()
+#     return dataset
 
 
-def run_training(
-    model: PrototypicalNetwork,
-    train_loader: DataLoader,
-    epochs: int,
-    learning_rate: float,
-    device: torch.device,
-) -> Tuple[List[float], List[float], List[float], List[float]]:
-    return train_prototypical_network(
-        model, train_loader, epochs, learning_rate, device
-    )
+# def create_dataloader(
+#     dataset: RailwayDataset, batch_size: int, shuffle: bool = True
+# ) -> DataLoader:
+#     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
 
-def run_evaluation(
-    model: PrototypicalNetwork, test_loader: DataLoader, device: torch.device
-) -> Tuple[float, float, float, float, np.ndarray]:
-    return evaluate_model(model, test_loader, device)
+# def initialize_model(
+#     input_channels: int,
+#     n_blocks: int,
+#     projection_dim: int,
+#     n_classes: int,
+#     pretrained: bool = False,
+# ) -> PrototypicalNetwork:
+#     encoder = ResNetEncoder(
+#         in_channels=input_channels, n_blocks=n_blocks, pretrained=pretrained
+#     )
+#     model = PrototypicalNetwork(
+#         encoder=encoder,
+#         projection_dim=projection_dim,
+#         n_classes=n_classes,
+#         contrastive_loss=True,
+#     )
+#     return model
+
+
+# def run_training(
+#     model: PrototypicalNetwork,
+#     train_loader: DataLoader,
+#     epochs: int,
+#     learning_rate: float,
+#     device: torch.device,
+# ) -> Tuple[List[float], List[float], List[float], List[float]]:
+#     return train_prototypical_network(
+#         model, train_loader, epochs, learning_rate, device
+#     )
+
+
+# def run_evaluation(
+#     model: PrototypicalNetwork, test_loader: DataLoader, device: torch.device
+# ) -> Tuple[float, float, float, float, np.ndarray]:
+#     return evaluate_model(model, test_loader, device)
