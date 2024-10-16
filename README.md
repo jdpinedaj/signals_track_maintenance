@@ -24,3 +24,10 @@ The main files of the project are:
 - overlap: 95% overlap means there is substantial overlap between windows. Only 5% of the data is unique per window.
 - nfft: This determines the number of points used for the FFT. The nfft_prepared value of 128 determines the frequency resolution of the resulting spectrogram.
 - sampling_frequency_stft_prepared: 100 Hz means you're working with data points spaced at 0.01-second intervals.
+
+# TODOs
+
+- Revisar modelo kmeans con 5%.
+- Revisar rangos de tiempos.
+- Agregar distancia en csvs.
+- Documentar.
