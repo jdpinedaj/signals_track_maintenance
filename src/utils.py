@@ -393,8 +393,10 @@ def plot_stft_results(
     plt.show()
 
 
-
-def preprocess_and_reduce(magnitude_spectrogram, n_components=10):
+def preprocess_and_reduce(
+    magnitude_spectrogram: np.ndarray,
+    n_components: int = 10,
+) -> np.ndarray:
     """
     Preprocess the magnitude spectrogram and reduce its dimensionality using PCA.
     This function takes a magnitude spectrogram as input, transposes it, and applies
@@ -414,7 +416,11 @@ def preprocess_and_reduce(magnitude_spectrogram, n_components=10):
     reduced_features_scaled = scaler.fit_transform(reduced_features)
     return reduced_features_scaled
 
-def find_optimal_clusters(reduced_features_scaled, max_k):
+
+def find_optimal_clusters(
+    reduced_features_scaled: np.ndarray,
+    max_k: int,
+) -> int:
     """
     Find the optimal number of clusters using the elbow method.
     This function calculates the inertia scores for a range of cluster numbers
@@ -430,32 +436,43 @@ def find_optimal_clusters(reduced_features_scaled, max_k):
 
     num_clusters = list(range(2, max_k + 1))
     inertia_scores = []
-    
+
     for n_clusters in num_clusters:
         kmeans = KMeans(n_clusters=n_clusters, random_state=42)
         kmeans.fit(reduced_features_scaled)
         inertia_scores.append(kmeans.inertia_)
-    
+
     # Calculate the first and second derivatives
     first_derivative = np.diff(inertia_scores)
     second_derivative = np.diff(first_derivative)
-    
+
     # The elbow point is where the second derivative is maximized
     best_num_clusters = num_clusters[np.argmax(second_derivative) + 2]
-    
+
     # Plot the inertia scores
     plt.figure(figsize=(10, 6))
     plt.plot(num_clusters, inertia_scores)
     plt.xlabel("Number of Clusters")
     plt.ylabel("Inertia Score")
     plt.title("Inertia Score vs. Number of Clusters")
-    plt.vlines(best_num_clusters, plt.ylim()[0], plt.ylim()[1], linestyles='dashed', colors='r', label='Optimal k')
+    plt.vlines(
+        best_num_clusters,
+        plt.ylim()[0],
+        plt.ylim()[1],
+        linestyles="dashed",
+        colors="r",
+        label="Optimal k",
+    )
     plt.legend()
     plt.show()
-    
+
     return best_num_clusters
 
-def apply_MiniBatchKMeans(data, n_clusters):
+
+def apply_MiniBatchKMeans(
+    data: np.ndarray,
+    n_clusters: int,
+) -> Tuple[MiniBatchKMeans, np.ndarray]:
     """
     Apply MiniBatchKMeans clustering to the data.
     This function applies the MiniBatchKMeans clustering algorithm to the input data
@@ -473,7 +490,12 @@ def apply_MiniBatchKMeans(data, n_clusters):
     labels = mbkmeans.fit_predict(data)
     return mbkmeans, labels
 
-def identify_anomalies_kmeans(data, mbkmeans, threshold=1.5):
+
+def identify_anomalies_kmeans(
+    data: np.ndarray,
+    mbkmeans: MiniBatchKMeans,
+    threshold: float = 1.5,
+) -> np.ndarray:
     """
     Identify anomalies using K-means clustering.
     This function identifies anomalies in the data by applying the MiniBatchKMeans
@@ -493,7 +515,14 @@ def identify_anomalies_kmeans(data, mbkmeans, threshold=1.5):
     anomalies = distances > threshold
     return anomalies
 
-def plot_clusters_and_anomalies_kmeans(times, data, labels, anomalies):
+
+def plot_clusters_and_anomalies_kmeans(
+    times: np.ndarray,
+    data: np.ndarray,
+    labels: np.ndarray,
+    anomalies: np.ndarray,
+    save_path: str = None,
+) -> None:
     """
     Plot clustering results and anomalies based on K-means clustering.
     This function visualizes the clustering results and identified anomalies
@@ -504,22 +533,33 @@ def plot_clusters_and_anomalies_kmeans(times, data, labels, anomalies):
         data (numpy.ndarray): Input data, where each row is a data point
         labels (numpy.ndarray): Cluster labels for each data point
         anomalies (numpy.ndarray): Boolean array indicating anomalies
-    
+        save_path (str, optional): Path to save the plot image. If None, the plot will not be saved.
+
     Returns:
         None: This function only produces a plot and does not return any value
     """
     plt.figure(figsize=(12, 6))
-    scatter = plt.scatter(times, data[:, 0], c=labels, cmap='viridis', alpha=0.5)
-    plt.scatter(times[anomalies], data[anomalies, 0], color='red', marker='x', label='Anomalies')
-    plt.colorbar(scatter, label='Cluster')
+    scatter = plt.scatter(times, data[:, 0], c=labels, cmap="viridis", alpha=0.5)
+    plt.scatter(
+        times[anomalies], data[anomalies, 0], color="red", marker="x", label="Anomalies"
+    )
+    plt.colorbar(scatter, label="Cluster")
     plt.xlabel("Time")
     plt.ylabel("Distance to nearest cluster center")
     plt.title("K-means Clustering and Anomaly Detection")
     plt.legend()
+
+    # If save_path is provided, save the plot to the specified location
+    if save_path:
+        plt.savefig(save_path)
+        logger.info(f"Plot saved to {save_path}")
+
     plt.show()
 
 
-def identify_anomalies_distance(data):
+def identify_anomalies_distance(
+    data: np.ndarray,
+) -> Tuple[np.ndarray, float, np.ndarray]:
     """
     Identify anomalies based on distance from the mean spectrum.
     This function calculates the mean spectrum of the input data and then
@@ -544,8 +584,13 @@ def identify_anomalies_distance(data):
     return distances_from_mean, threshold, anomalies
 
 
-
-def plot_clusters_and_anomalies_distance(times, anomalies, distances_from_mean, threshold):
+def plot_clusters_and_anomalies_distance(
+    times: np.ndarray,
+    anomalies: np.ndarray,
+    distances_from_mean: np.ndarray,
+    threshold: float,
+    save_path: str = None,
+) -> None:
     """
     Plot clustering results and anomalies based on distance from mean.
     Args:
@@ -553,21 +598,34 @@ def plot_clusters_and_anomalies_distance(times, anomalies, distances_from_mean, 
         anomalies (numpy.ndarray): Boolean array indicating anomalies
         distances_from_mean (numpy.ndarray): Array of distances from mean
         threshold (float): Threshold for anomaly detection
-    
+        save_path (str, optional): Path to save the plot image. If None, the plot will not be saved.
+
     Returns:
         None
     """
     plt.figure(figsize=(12, 6))
     plt.plot(times, distances_from_mean)
-    plt.scatter(times[anomalies], distances_from_mean[anomalies], c='red', marker='x')
-    plt.axhline(threshold, color='r', linestyle='--', label='Threshold')
+    plt.scatter(times[anomalies], distances_from_mean[anomalies], c="red", marker="x")
+    plt.axhline(threshold, color="r", linestyle="--", label="Threshold")
     plt.xlabel("Time")
     plt.ylabel("Distance from Mean")
     plt.title("Distance from Mean and Anomalies")
     plt.legend()
+
+    # If save_path is provided, save the plot to the specified location
+    if save_path:
+        plt.savefig(save_path)
+        logger.info(f"Plot saved to {save_path}")
+
     plt.show()
 
-def save_anomalies_to_csv(anomalies, times, frequencies, filename):
+
+def save_anomalies_to_csv(
+    anomalies: np.ndarray,
+    times: np.ndarray,
+    frequencies: np.ndarray,
+    filename: str,
+) -> None:
     """
     Save identified anomalies to a CSV file.
     Args:
@@ -582,14 +640,17 @@ def save_anomalies_to_csv(anomalies, times, frequencies, filename):
     anomaly_indices = np.where(anomalies)[0]
     anomaly_times = times[anomaly_indices]
     anomaly_frequencies = frequencies[anomaly_indices % len(frequencies)]
-    
-    df = pd.DataFrame({
-        'Anomaly_Index': anomaly_indices,
-        'Anomaly_Time': anomaly_times,
-        'Anomaly_Frequency': anomaly_frequencies
-    })
+
+    df = pd.DataFrame(
+        {
+            "Anomaly_Index": anomaly_indices,
+            "Anomaly_Time": anomaly_times,
+            "Anomaly_Frequency": anomaly_frequencies,
+        }
+    )
     df.to_csv(filename, index=False)
-    print(f"Anomalies saved to '{filename}'")
+    logger.info(f"Anomalies saved to {filename}")
+
 
 # #! ---- NEW FUNCTIONS - TBD ----
 # def prepare_dataset_for_training(

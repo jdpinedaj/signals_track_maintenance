@@ -1,5 +1,10 @@
 data_to_analyze:
+  mat_data: "Datos_210509-094222_PX_RA.mat" # OPTIONS: "Datos_200711-105257_RA_AD.mat", "Datos_210509-104818_RA_AP.mat", "Datos_210509-094222_PX_RA.mat"
   acceleration_to_analyze: "acc_lat_axle_box_ms2" # OPTIONS: "acc_vert_left_axle_box_ms2", "acc_vert_right_axle_box_ms2", "acc_lat_axle_box_ms2",
+
+paths:
+  data_path: "data/Datos_Matlab"
+  anomalies_path: "data/output"
 
 time_vector_params:
   sampling_frequency_tvp: 3200 # Sampling frequency in Hz
