@@ -29,7 +29,7 @@ from sklearn.preprocessing import StandardScaler
 
 
 # Local Imports
-from .logs import logger
+from src.logs import logger
 
 #!##########################################
 #!############ SUB FUNCTIONS ###############
@@ -342,6 +342,7 @@ def plot_stft_results(
     X_prime: np.ndarray,
     total_time: np.ndarray,
     signal: np.ndarray,
+    save_path: str = None,
 ) -> NoReturn:
     """
     Plot the results of the STFT analysis.
@@ -352,6 +353,7 @@ def plot_stft_results(
         X_prime (numpy.ndarray): Normalized spectrogram.
         total_time (numpy.ndarray): Total time vector.
         signal (numpy.ndarray): Input signal.
+        save_path (str): Path to save the plot.
     Returns:
         None
     """
@@ -390,7 +392,14 @@ def plot_stft_results(
 
     # Adjust layout
     plt.tight_layout()
-    plt.show()
+
+    # If save_path is not None, save the plot
+    if save_path is not None:
+        plt.savefig(save_path)
+    else:
+        plt.show()
+
+    plt.close()
 
 
 def preprocess_and_reduce(
@@ -420,6 +429,7 @@ def preprocess_and_reduce(
 def find_optimal_clusters(
     reduced_features_scaled: np.ndarray,
     max_k: int,
+    save_path: str = None,
 ) -> int:
     """
     Find the optimal number of clusters using the elbow method.
@@ -429,6 +439,7 @@ def find_optimal_clusters(
     Args:
         reduced_features_scaled (numpy.ndarray): Scaled and reduced feature data.
         max_k (int): Maximum number of clusters to consider.
+        save_path (str, optional): Path to save the plot.
 
     Returns:
         int: Optimal number of clusters.
@@ -464,7 +475,16 @@ def find_optimal_clusters(
         label="Optimal k",
     )
     plt.legend()
-    plt.show()
+
+    # If save_path is provided, save the plot to the specified location
+    if save_path:
+        plt.savefig(save_path)
+    else:
+        plt.show()
+
+    plt.close()
+
+    logger.info(f"Optimal number of clusters: {best_num_clusters}")
 
     return best_num_clusters
 
@@ -553,8 +573,10 @@ def plot_clusters_and_anomalies_kmeans(
     if save_path:
         plt.savefig(save_path)
         logger.info(f"Plot saved to {save_path}")
+    else:
+        plt.show()
 
-    plt.show()
+    plt.close()
 
 
 def identify_anomalies_distance(
@@ -616,8 +638,10 @@ def plot_clusters_and_anomalies_distance(
     if save_path:
         plt.savefig(save_path)
         logger.info(f"Plot saved to {save_path}")
+    else:
+        plt.show()
 
-    plt.show()
+    plt.close()
 
 
 def save_anomalies_to_csv(
