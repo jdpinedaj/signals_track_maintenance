@@ -3,6 +3,7 @@
 #!##########################################
 
 # Standard Library Imports
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -13,6 +14,8 @@ from typing import Tuple, Optional, NoReturn
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.cluster import MiniBatchKMeans, KMeans
 from sklearn.preprocessing import StandardScaler
+import plotly.express as px
+import plotly.graph_objects as go
 
 # New imports (test supervised contrastive learning)
 # import torch
@@ -29,7 +32,7 @@ from sklearn.preprocessing import StandardScaler
 
 
 # Local Imports
-from .logs import logger
+from src.logs import logger
 
 #!##########################################
 #!############ SUB FUNCTIONS ###############
@@ -103,18 +106,22 @@ def preprocess_mat_data(
     data_path: str,
     acel_to_process: str,
     time_col_name: str,
+    km_ref_col_name: str,
     key_f20_10: Optional[str] = "f20_10",
-) -> Tuple[np.ndarray, np.ndarray, pd.Series, pd.DataFrame]:
+) -> Tuple[np.ndarray, np.ndarray, pd.Series, pd.Series, pd.DataFrame]:
     """
     Load and preprocess the data.
     Args:
         data_path (str): Path to the data file.
         acel_to_process (str): Acceleration data to process.
+        time_col_name (str): Time column name.
+        km_ref_col_name (str): Kilometer reference column name.
         key_f20_10 (str): Key for the .mat file, to identify the f20_10 data.
     Returns:
         data (numpy.ndarray): Preprocessed data.
         signal (numpy.ndarray): Signal to process.
         time_column (pd.Series): Time column.
+        kilometer_ref (pd.Series): Kilometer reference column.
         df (pd.DataFrame): Dataframe with the data.
     """
     try:
@@ -142,8 +149,9 @@ def preprocess_mat_data(
         # Extract the signal and time_column
         signal = df[acel_to_process]
         time_column = df[time_col_name]
+        kilometer_ref = df[km_ref_col_name]
 
-        return data, signal, time_column, df
+        return data, signal, time_column, kilometer_ref, df
 
     except Exception as e:
         logger.error(f"Error processing data: {e}")
@@ -342,6 +350,7 @@ def plot_stft_results(
     X_prime: np.ndarray,
     total_time: np.ndarray,
     signal: np.ndarray,
+    save_path: str = None,
 ) -> NoReturn:
     """
     Plot the results of the STFT analysis.
@@ -352,6 +361,7 @@ def plot_stft_results(
         X_prime (numpy.ndarray): Normalized spectrogram.
         total_time (numpy.ndarray): Total time vector.
         signal (numpy.ndarray): Input signal.
+        save_path (str): Path to save the plot.
     Returns:
         None
     """
@@ -390,7 +400,14 @@ def plot_stft_results(
 
     # Adjust layout
     plt.tight_layout()
-    plt.show()
+
+    # If save_path is not None, save the plot
+    if save_path is not None:
+        plt.savefig(save_path)
+    else:
+        plt.show()
+
+    plt.close()
 
 
 def preprocess_and_reduce(
@@ -420,6 +437,7 @@ def preprocess_and_reduce(
 def find_optimal_clusters(
     reduced_features_scaled: np.ndarray,
     max_k: int,
+    save_path: str = None,
 ) -> int:
     """
     Find the optimal number of clusters using the elbow method.
@@ -429,6 +447,7 @@ def find_optimal_clusters(
     Args:
         reduced_features_scaled (numpy.ndarray): Scaled and reduced feature data.
         max_k (int): Maximum number of clusters to consider.
+        save_path (str, optional): Path to save the plot.
 
     Returns:
         int: Optimal number of clusters.
@@ -464,7 +483,16 @@ def find_optimal_clusters(
         label="Optimal k",
     )
     plt.legend()
-    plt.show()
+
+    # If save_path is provided, save the plot to the specified location
+    if save_path:
+        plt.savefig(save_path)
+    else:
+        plt.show()
+
+    plt.close()
+
+    logger.info(f"Optimal number of clusters: {best_num_clusters}")
 
     return best_num_clusters
 
@@ -494,7 +522,7 @@ def apply_MiniBatchKMeans(
 def identify_anomalies_kmeans(
     data: np.ndarray,
     mbkmeans: MiniBatchKMeans,
-    threshold: float = 1.5,
+    percentile: float = 95,
 ) -> np.ndarray:
     """
     Identify anomalies using K-means clustering.
@@ -505,13 +533,13 @@ def identify_anomalies_kmeans(
     Args:
         data (numpy.ndarray): Input data to be clustered.
         mbkmeans (MiniBatchKMeans): Trained MiniBatchKMeans model.
-        threshold (float, optional): Threshold for identifying anomalies. Default is 1.5.
-
+        percentile (float, optional): The percentile of the distance distribution
+            to use as the threshold. Default is 95.
     Returns:
         numpy.ndarray: Boolean array indicating anomalies.
     """
     distances = mbkmeans.transform(data).min(axis=1)
-    threshold = np.percentile(distances, 95)
+    threshold = np.percentile(distances, percentile)
     anomalies = distances > threshold
     return anomalies
 
@@ -553,8 +581,10 @@ def plot_clusters_and_anomalies_kmeans(
     if save_path:
         plt.savefig(save_path)
         logger.info(f"Plot saved to {save_path}")
+    else:
+        plt.show()
 
-    plt.show()
+    plt.close()
 
 
 def identify_anomalies_distance(
@@ -597,7 +627,9 @@ def plot_clusters_and_anomalies_distance(
         times (numpy.ndarray): Time array
         anomalies (numpy.ndarray): Boolean array indicating anomalies
         distances_from_mean (numpy.ndarray): Array of distances from mean
-        threshold (float): Threshold for anomaly detection
+        threshold (float): Threshold for anomaly detection. It is calculated from
+            the function identify_anomalies_distance, and the equation is
+            mean_distance + 2 * standard_deviation
         save_path (str, optional): Path to save the plot image. If None, the plot will not be saved.
 
     Returns:
@@ -616,14 +648,17 @@ def plot_clusters_and_anomalies_distance(
     if save_path:
         plt.savefig(save_path)
         logger.info(f"Plot saved to {save_path}")
+    else:
+        plt.show()
 
-    plt.show()
+    plt.close()
 
 
 def save_anomalies_to_csv(
     anomalies: np.ndarray,
     times: np.ndarray,
     frequencies: np.ndarray,
+    kilometer_ref: np.ndarray,
     filename: str,
 ) -> None:
     """
@@ -632,6 +667,7 @@ def save_anomalies_to_csv(
         anomalies (numpy.ndarray): Boolean array indicating anomalies
         times (numpy.ndarray): Array of time values
         frequencies (numpy.ndarray): Array of frequency values
+        kilometer_ref (numpy.ndarray): Array of kilometer values
         filename (str): Name of the CSV file to save the anomalies
 
     Returns:
@@ -640,16 +676,109 @@ def save_anomalies_to_csv(
     anomaly_indices = np.where(anomalies)[0]
     anomaly_times = times[anomaly_indices]
     anomaly_frequencies = frequencies[anomaly_indices % len(frequencies)]
+    anomaly_kilometers = kilometer_ref.iloc[anomaly_indices].values
 
     df = pd.DataFrame(
         {
             "Anomaly_Index": anomaly_indices,
             "Anomaly_Time": anomaly_times,
+            "Kilometer_Ref_Fixed_Km": anomaly_kilometers,
             "Anomaly_Frequency": anomaly_frequencies,
         }
     )
     df.to_csv(filename, index=False)
     logger.info(f"Anomalies saved to {filename}")
+
+
+def load_anomalies(folder_path: str) -> dict:
+    """
+    Load all anomaly CSV files from the specified folder.
+    Args:
+        folder_path (str): Path to the folder containing anomaly CSV files.
+    Returns:
+        dict: Dictionary with dataframes for each CSV.
+    """
+    anomaly_data = {}
+
+    # Check if folder exists to prevent FileNotFoundError
+    if not os.path.exists(folder_path):
+        raise FileNotFoundError(f"The folder path {folder_path} does not exist.")
+
+    for file in os.listdir(folder_path):
+        if file.endswith(".csv"):
+            file_path = os.path.join(folder_path, file)
+            key = file.replace(".csv", "")  # Use the file name (minus extension) as key
+            anomaly_data[key] = pd.read_csv(file_path)
+    return anomaly_data
+
+
+def plot_anomalies(anomaly_data: dict, x_axis: str = "Anomaly_Time") -> go.Figure:
+    """
+    Plot anomalies using Plotly as histograms, with interactive controls for x-axis selection.
+    Args:
+        anomaly_data (dict): Dictionary with anomaly dataframes.
+        x_axis (str): Column name for x-axis, either "Anomaly_Time" or "Kilometer_Ref_Fixed_Km".
+    Returns:
+        go.Figure: Plotly figure with overlaid anomaly histogram plots.
+    """
+    fig = go.Figure()
+
+    # Define colors for each trace
+    colors = px.colors.qualitative.Plotly
+    color_index = 0
+
+    # Map acceleration codes to descriptive names
+    acceleration_labels = {
+        "acc_vert_left_axle_box_ms2": "Vertical Left Axle",
+        "acc_vert_right_axle_box_ms2": "Vertical Right Axle",
+        "acc_lat_axle_box_ms2": "Lateral Axle",
+    }
+
+    for key, data in anomaly_data.items():
+        # Extract route, acceleration, and anomaly type from the filename
+        parts = key.split("_")
+        route = "_".join(parts[:2])  # Route name (e.g., RA_AP)
+        acceleration_code = "_".join(parts[2:-2])  # Acceleration code
+        anomaly_type = parts[-1]  # Anomaly type
+
+        # Map the acceleration code to its descriptive label
+        acceleration = acceleration_labels.get(acceleration_code, acceleration_code)
+
+        # Create a scatter plot trace for each (acceleration, anomaly type) combination
+        # Adding scatterplot
+        fig.add_trace(
+            go.Scatter(
+                x=data[x_axis],
+                y=data["Anomaly_Frequency"],
+                mode="markers",  # "lines+markers" or "markers"
+                # mode="markers",
+                name=f"{route} - {acceleration} - {anomaly_type}",
+                marker=dict(color=colors[color_index % len(colors)]),
+            )
+        )
+        # Adding histogram
+        fig.add_trace(
+            go.Histogram(
+                x=data[x_axis],
+                y=data["Anomaly_Frequency"],
+                name=f"{route} - {acceleration} - {anomaly_type}",
+                marker=dict(color=colors[color_index % len(colors)]),
+                opacity=0.6,
+            )
+        )
+        color_index += 1
+
+    # Set up layout
+    fig.update_layout(
+        title="Anomaly Frequency for Different Accelerations and Anomaly Types",
+        xaxis_title=x_axis,
+        yaxis_title="Anomaly Frequency",
+        barmode="overlay",  # Overlay histograms for comparison
+        legend_title="Route - Acceleration - Anomaly Type",
+        template="plotly_dark",
+    )
+
+    return fig
 
 
 # #! ---- NEW FUNCTIONS - TBD ----

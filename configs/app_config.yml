@@ -1,6 +1,29 @@
 data_to_analyze:
-  mat_data: "Datos_210509-094222_PX_RA.mat" # OPTIONS: "Datos_200711-105257_RA_AD.mat", "Datos_210509-104818_RA_AP.mat", "Datos_210509-094222_PX_RA.mat"
-  acceleration_to_analyze: "acc_lat_axle_box_ms2" # OPTIONS: "acc_vert_left_axle_box_ms2", "acc_vert_right_axle_box_ms2", "acc_lat_axle_box_ms2",
+  data_files:
+    RA_AP: "Datos_210509-104818_RA_AP.mat"
+    PX_RA: "Datos_210509-094222_PX_RA.mat"
+    RA_AD: "Datos_200711-105257_RA_AD.mat"
+    AD_CV: "Datos_200711-085103_AD_CV.mat"
+    CV_RR: "Datos_200711-091803_CV_RR.mat"
+    CV_AD: "Datos_200711-094823_CV_AD.mat"
+    AD_AP: "Datos_200711-101450_AD_AP.mat"
+    TA_TO: "Datos_200711-121631_TA_TO.mat"
+    TO_EM_v2: "Datos_200711-122021_TO_EM_v2.mat"
+    EM_SE: "Datos_200711-124251_EM_SE.mat"
+    BE_BU: "Datos_200711-131013_BE_BU.mat"
+    EM_CP: "Datos_200712-083245_EM_CP.mat"
+    EP_EL: "Datos_200712-085304_EP_EL.mat"
+    LL_PA: "Datos_200712-090845_LL_PA.mat"
+    PA_EM: "Datos_200712-093600_PA_EM.mat"
+    EM_TO_v2: "Datos_200712-094430_EM_TO_v2.mat"
+    JE_AD: "Datos_200712-121007_JE_AD.mat"
+  accelerations:
+    vertical_left_axle: "acc_vert_left_axle_box_ms2"
+    vertical_right_axle: "acc_vert_right_axle_box_ms2"
+    lateral_axle: "acc_lat_axle_box_ms2"
+  # Selected file and acceleration
+  selected_file_key: "RA_AP"
+  selected_acceleration_key: "lateral_axle"
 
 paths:
   data_path: "data/Datos_Matlab"
@@ -19,6 +42,9 @@ features_stft:
   nfft_raw: 4096 #* O 1024 si esta tardando mucho en el analisis de deteccion de anomalos
   sampling_frequency_stft_prepared: 100  # Sampling frequency in Hz. 100 for sampled data, 3200 for raw data
   nfft_prepared: 128 #* O 32 si esta tardando mucho en el analisis de deteccion de anomalos
+
+anomalies:
+  percentile_kmeans: 98  # It means that the (100 - percentile_kmeans) of the data will be considered as anomalies
 
 dev_comments:
   save_logs: True

@@ -56,6 +56,7 @@ notebooks/*
 !notebooks/2_test_anomaly_detection_numerical.ipynb
 !notebooks/3_calculate_anomalies_kmeans.ipynb
 !notebooks/4_test_functions_anomalies.ipynb
+!notebooks/5_test_main_function.ipynb
 
 # Cache
 .cache/

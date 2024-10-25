@@ -14,9 +14,7 @@ The main files of the project are:
 
 1. `src/utils.py`: Utility functions.
 2. `src/logs.py`: Logging functions.
-3. `src/anomaly_detection/isolation_forest.py`: Isolation forest model.
-4. `src/anomaly_detection/time_series.py`: Time series model.
-5. `configs/app_config.yml`: Configuration file for the project.
+3. `src/load_config.py` and `configs/app_config.yml`: Configuration files and parameters.
 
 # Parameters
 
@@ -27,7 +25,11 @@ The main files of the project are:
 
 # TODOs
 
-- Revisar modelo kmeans con 5%.
-- Revisar rangos de tiempos.
-- Agregar distancia en csvs.
+<!-- - Revisar modelo kmeans con 5%. -->
+<!-- - Pasar threshold a parametros -->
+<!-- - Agregar distancia en csvs (kilometer_ref_fixed_km). -->
+<!-- - plotly para superponer graficos. -->
+
+- Revisar nuevos datos.
 - Documentar.
+- tablero
