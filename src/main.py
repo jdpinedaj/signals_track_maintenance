@@ -1,3 +1,6 @@
+#  poetry run python src/main.py --file_key RA_AP --accel_key lateral_axle
+
+
 #!##########################################
 #!############# IMPORTS ####################
 #!##########################################
@@ -168,6 +171,11 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
 
 
 def main():
+    """
+    Main function to run the data processing and analysis.
+    It can be executed like this:
+        poetry run python src/main.py --file_key RA_AP --accel_key lateral_axle
+    """
     parser = argparse.ArgumentParser(description="Run data processing and analysis.")
     parser.add_argument(
         "--file_key", type=str, help="Key for the data file to process (e.g., 'RA_AP')."

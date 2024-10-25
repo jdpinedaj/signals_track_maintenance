@@ -3,6 +3,7 @@
 #!##########################################
 
 # Standard Library Imports
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -13,6 +14,8 @@ from typing import Tuple, Optional, NoReturn
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.cluster import MiniBatchKMeans, KMeans
 from sklearn.preprocessing import StandardScaler
+import plotly.express as px
+import plotly.graph_objects as go
 
 # New imports (test supervised contrastive learning)
 # import torch
@@ -685,6 +688,97 @@ def save_anomalies_to_csv(
     )
     df.to_csv(filename, index=False)
     logger.info(f"Anomalies saved to {filename}")
+
+
+def load_anomalies(folder_path: str) -> dict:
+    """
+    Load all anomaly CSV files from the specified folder.
+    Args:
+        folder_path (str): Path to the folder containing anomaly CSV files.
+    Returns:
+        dict: Dictionary with dataframes for each CSV.
+    """
+    anomaly_data = {}
+
+    # Check if folder exists to prevent FileNotFoundError
+    if not os.path.exists(folder_path):
+        raise FileNotFoundError(f"The folder path {folder_path} does not exist.")
+
+    for file in os.listdir(folder_path):
+        if file.endswith(".csv"):
+            file_path = os.path.join(folder_path, file)
+            key = file.replace(".csv", "")  # Use the file name (minus extension) as key
+            anomaly_data[key] = pd.read_csv(file_path)
+    return anomaly_data
+
+
+def plot_anomalies(anomaly_data: dict, x_axis: str = "Anomaly_Time") -> go.Figure:
+    """
+    Plot anomalies using Plotly as histograms, with interactive controls for x-axis selection.
+    Args:
+        anomaly_data (dict): Dictionary with anomaly dataframes.
+        x_axis (str): Column name for x-axis, either "Anomaly_Time" or "Kilometer_Ref_Fixed_Km".
+    Returns:
+        go.Figure: Plotly figure with overlaid anomaly histogram plots.
+    """
+    fig = go.Figure()
+
+    # Define colors for each trace
+    colors = px.colors.qualitative.Plotly
+    color_index = 0
+
+    # Map acceleration codes to descriptive names
+    acceleration_labels = {
+        "acc_vert_left_axle_box_ms2": "Vertical Left Axle",
+        "acc_vert_right_axle_box_ms2": "Vertical Right Axle",
+        "acc_lat_axle_box_ms2": "Lateral Axle",
+    }
+
+    for key, data in anomaly_data.items():
+        # Extract route, acceleration, and anomaly type from the filename
+        parts = key.split("_")
+        route = "_".join(parts[:2])  # Route name (e.g., RA_AP)
+        acceleration_code = "_".join(parts[2:-2])  # Acceleration code
+        anomaly_type = parts[-1]  # Anomaly type
+
+        # Map the acceleration code to its descriptive label
+        acceleration = acceleration_labels.get(acceleration_code, acceleration_code)
+
+        # Create a scatter plot trace for each (acceleration, anomaly type) combination
+        # Adding scatterplot
+        fig.add_trace(
+            go.Scatter(
+                x=data[x_axis],
+                y=data["Anomaly_Frequency"],
+                mode="markers",  # "lines+markers" or "markers"
+                # mode="markers",
+                name=f"{route} - {acceleration} - {anomaly_type}",
+                marker=dict(color=colors[color_index % len(colors)]),
+            )
+        )
+        # Adding histogram
+        fig.add_trace(
+            go.Histogram(
+                x=data[x_axis],
+                y=data["Anomaly_Frequency"],
+                name=f"{route} - {acceleration} - {anomaly_type}",
+                marker=dict(color=colors[color_index % len(colors)]),
+                opacity=0.6,
+            )
+        )
+        color_index += 1
+
+    # Set up layout
+    fig.update_layout(
+        title="Anomaly Frequency for Different Accelerations and Anomaly Types",
+        xaxis_title=x_axis,
+        yaxis_title="Anomaly Frequency",
+        barmode="overlay",  # Overlay histograms for comparison
+        legend_title="Route - Acceleration - Anomaly Type",
+        template="plotly_dark",
+    )
+
+    return fig
 
 
 # #! ---- NEW FUNCTIONS - TBD ----

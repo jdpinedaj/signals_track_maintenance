@@ -28,8 +28,8 @@ The main files of the project are:
 <!-- - Revisar modelo kmeans con 5%. -->
 <!-- - Pasar threshold a parametros -->
 <!-- - Agregar distancia en csvs (kilometer_ref_fixed_km). -->
+<!-- - plotly para superponer graficos. -->
 
-- plotly para superponer graficos.
 - Revisar nuevos datos.
 - Documentar.
 - tablero
