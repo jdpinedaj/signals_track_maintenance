@@ -43,5 +43,8 @@ features_stft:
   sampling_frequency_stft_prepared: 100  # Sampling frequency in Hz. 100 for sampled data, 3200 for raw data
   nfft_prepared: 128 #* O 32 si esta tardando mucho en el analisis de deteccion de anomalos
 
+anomalies:
+  percentile_kmeans: 98  # It means that the (100 - percentile_kmeans) of the data will be considered as anomalies
+
 dev_comments:
   save_logs: True

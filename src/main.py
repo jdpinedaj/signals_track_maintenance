@@ -53,10 +53,17 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
     logger.info(f"Using acceleration: {APPCFG.acceleration_to_analyze}")
 
     # Step 1: Load and preprocess data
-    data_f20_10, signal_acc_mat, time_column_mat, df_mat = preprocess_mat_data(
+    (
+        data_f20_10,
+        signal_acc_mat,
+        time_column_mat,
+        kilometer_ref,
+        df_mat,
+    ) = preprocess_mat_data(
         data_path=APPCFG.mat_data,
         acel_to_process=APPCFG.acceleration_to_analyze,
         time_col_name="timestamp_s",
+        km_ref_col_name="kilometer_ref_fixed_km",
     )
 
     # Step 2: Apply STFT
@@ -102,19 +109,22 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
     mbkmeans, labels = apply_MiniBatchKMeans(reduced_features_scaled, optimal_k)
 
     # Step 5: Detect anomalies using K-means
-    anomalies_kmeans = identify_anomalies_kmeans(reduced_features_scaled, mbkmeans)
+    anomalies_kmeans = identify_anomalies_kmeans(
+        reduced_features_scaled, mbkmeans, percentile=APPCFG.percentile_kmeans
+    )
     plot_clusters_and_anomalies_kmeans(
         times_acc,
         reduced_features_scaled,
         labels,
         anomalies_kmeans,
-        save_path=APPCFG.get_anomalies_filename("kmeans_fn", file_extension="png"),
+        save_path=APPCFG.get_anomalies_filename("kmeans", file_extension="png"),
     )
     save_anomalies_to_csv(
         anomalies_kmeans,
         times_acc,
         frequencies_acc,
-        APPCFG.get_anomalies_filename("kmeans_fn"),
+        kilometer_ref,
+        APPCFG.get_anomalies_filename("kmeans"),
     )
 
     # Step 6: Detect anomalies using distance from mean
@@ -126,13 +136,14 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
         anomalies_distance,
         distances_from_mean,
         threshold,
-        save_path=APPCFG.get_anomalies_filename("distance_fn", file_extension="png"),
+        save_path=APPCFG.get_anomalies_filename("distance", file_extension="png"),
     )
     save_anomalies_to_csv(
         anomalies_distance,
         times_acc,
         frequencies_acc,
-        APPCFG.get_anomalies_filename("distance_fn"),
+        kilometer_ref,
+        APPCFG.get_anomalies_filename("distance"),
     )
 
     # Step 7: Print a summary of the results
@@ -149,6 +160,11 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
     logger.info(
         f"Distance time range: {times_acc[np.where(anomalies_distance)[0]].min()} to {times_acc[np.where(anomalies_distance)[0]].max()}"
     )
+
+
+#!##########################################
+#!################ MAIN ####################
+#!##########################################
 
 
 def main():

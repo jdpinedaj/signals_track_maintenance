@@ -25,8 +25,11 @@ The main files of the project are:
 
 # TODOs
 
-- Revisar modelo kmeans con 5%.
-- pasar threshold a parametros
-- Agregar distancia en csvs (kilometer_ref_fixed_km).
+<!-- - Revisar modelo kmeans con 5%. -->
+<!-- - Pasar threshold a parametros -->
+<!-- - Agregar distancia en csvs (kilometer_ref_fixed_km). -->
+
+- plotly para superponer graficos.
+- Revisar nuevos datos.
 - Documentar.
 - tablero

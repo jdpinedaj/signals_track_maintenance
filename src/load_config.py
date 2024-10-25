@@ -34,6 +34,9 @@ class LoadConfig:
             sampling_frequency_stft_prepared (int): Prepared data sampling frequency in Hz.
             nfft_prepared (int): Number of FFT points for prepared data.
 
+        Anomalies:
+            percentile_kmeans (int): Percentile used for anomaly detection.
+
         Developer Comments:
             save_logs (bool): If True, logs are saved.
 
@@ -43,6 +46,7 @@ class LoadConfig:
         _load_paths: Loads the directory paths for data and anomaly saving.
         _load_time_vector_params: Loads time vector related parameters.
         _load_features_stft: Loads the STFT feature extraction parameters.
+        _load_anomalies_params: Loads the anomaly detection parameters.
         _load_dev_comments: Loads the developer comments, such as whether to save logs.
         get_anomalies_filename: Constructs the full path for saving the anomalies, based on the anomaly type.
     """
@@ -57,6 +61,7 @@ class LoadConfig:
         self._load_data_to_analyze(app_config)
         self._load_time_vector_params(app_config)
         self._load_features_stft(app_config)
+        self._load_anomalies_params(app_config)
         self._load_dev_comments(app_config)
 
     def _load_paths(self, config: Dict[str, Any]) -> None:
@@ -107,6 +112,11 @@ class LoadConfig:
 
     def _load_dev_comments(self, config: Dict[str, Any]) -> None:
         self.save_logs = config["dev_comments"]["save_logs"]
+
+    def _load_anomalies_params(self, config: Dict[str, Any]) -> None:
+        anomalies = config["anomalies"]
+
+        self.percentile_kmeans = anomalies["percentile_kmeans"]
 
     def get_anomalies_filename(
         self, anomaly_type: str, file_extension: str = "csv"

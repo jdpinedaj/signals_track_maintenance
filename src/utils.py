@@ -103,18 +103,22 @@ def preprocess_mat_data(
     data_path: str,
     acel_to_process: str,
     time_col_name: str,
+    km_ref_col_name: str,
     key_f20_10: Optional[str] = "f20_10",
-) -> Tuple[np.ndarray, np.ndarray, pd.Series, pd.DataFrame]:
+) -> Tuple[np.ndarray, np.ndarray, pd.Series, pd.Series, pd.DataFrame]:
     """
     Load and preprocess the data.
     Args:
         data_path (str): Path to the data file.
         acel_to_process (str): Acceleration data to process.
+        time_col_name (str): Time column name.
+        km_ref_col_name (str): Kilometer reference column name.
         key_f20_10 (str): Key for the .mat file, to identify the f20_10 data.
     Returns:
         data (numpy.ndarray): Preprocessed data.
         signal (numpy.ndarray): Signal to process.
         time_column (pd.Series): Time column.
+        kilometer_ref (pd.Series): Kilometer reference column.
         df (pd.DataFrame): Dataframe with the data.
     """
     try:
@@ -142,8 +146,9 @@ def preprocess_mat_data(
         # Extract the signal and time_column
         signal = df[acel_to_process]
         time_column = df[time_col_name]
+        kilometer_ref = df[km_ref_col_name]
 
-        return data, signal, time_column, df
+        return data, signal, time_column, kilometer_ref, df
 
     except Exception as e:
         logger.error(f"Error processing data: {e}")
@@ -514,7 +519,7 @@ def apply_MiniBatchKMeans(
 def identify_anomalies_kmeans(
     data: np.ndarray,
     mbkmeans: MiniBatchKMeans,
-    threshold: float = 1.5,
+    percentile: float = 95,
 ) -> np.ndarray:
     """
     Identify anomalies using K-means clustering.
@@ -525,13 +530,13 @@ def identify_anomalies_kmeans(
     Args:
         data (numpy.ndarray): Input data to be clustered.
         mbkmeans (MiniBatchKMeans): Trained MiniBatchKMeans model.
-        threshold (float, optional): Threshold for identifying anomalies. Default is 1.5.
-
+        percentile (float, optional): The percentile of the distance distribution
+            to use as the threshold. Default is 95.
     Returns:
         numpy.ndarray: Boolean array indicating anomalies.
     """
     distances = mbkmeans.transform(data).min(axis=1)
-    threshold = np.percentile(distances, 95)
+    threshold = np.percentile(distances, percentile)
     anomalies = distances > threshold
     return anomalies
 
@@ -619,7 +624,9 @@ def plot_clusters_and_anomalies_distance(
         times (numpy.ndarray): Time array
         anomalies (numpy.ndarray): Boolean array indicating anomalies
         distances_from_mean (numpy.ndarray): Array of distances from mean
-        threshold (float): Threshold for anomaly detection
+        threshold (float): Threshold for anomaly detection. It is calculated from
+            the function identify_anomalies_distance, and the equation is
+            mean_distance + 2 * standard_deviation
         save_path (str, optional): Path to save the plot image. If None, the plot will not be saved.
 
     Returns:
@@ -648,6 +655,7 @@ def save_anomalies_to_csv(
     anomalies: np.ndarray,
     times: np.ndarray,
     frequencies: np.ndarray,
+    kilometer_ref: np.ndarray,
     filename: str,
 ) -> None:
     """
@@ -656,6 +664,7 @@ def save_anomalies_to_csv(
         anomalies (numpy.ndarray): Boolean array indicating anomalies
         times (numpy.ndarray): Array of time values
         frequencies (numpy.ndarray): Array of frequency values
+        kilometer_ref (numpy.ndarray): Array of kilometer values
         filename (str): Name of the CSV file to save the anomalies
 
     Returns:
@@ -664,11 +673,13 @@ def save_anomalies_to_csv(
     anomaly_indices = np.where(anomalies)[0]
     anomaly_times = times[anomaly_indices]
     anomaly_frequencies = frequencies[anomaly_indices % len(frequencies)]
+    anomaly_kilometers = kilometer_ref.iloc[anomaly_indices].values
 
     df = pd.DataFrame(
         {
             "Anomaly_Index": anomaly_indices,
             "Anomaly_Time": anomaly_times,
+            "Kilometer_Ref_Fixed_Km": anomaly_kilometers,
             "Anomaly_Frequency": anomaly_frequencies,
         }
     )
