@@ -16,6 +16,7 @@ data_to_analyze:
     LL_PA: "Datos_200712-090845_LL_PA.mat"
     PA_EM: "Datos_200712-093600_PA_EM.mat"
     EM_TO_v2: "Datos_200712-094430_EM_TO_v2.mat"
+    TO_VC: "Datos_200712-100322_TO_VC.mat"
     JE_AD: "Datos_200712-121007_JE_AD.mat"
   accelerations:
     vertical_left_axle: "acc_vert_left_axle_box_ms2"

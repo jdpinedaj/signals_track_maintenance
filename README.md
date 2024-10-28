@@ -29,7 +29,11 @@ The main files of the project are:
 <!-- - Pasar threshold a parametros -->
 <!-- - Agregar distancia en csvs (kilometer_ref_fixed_km). -->
 <!-- - plotly para superponer graficos. -->
+<!-- - plotly organizar histograma en 0.1 s o 1 m rango que pidio Pablo. -->
+<!-- - Revisar nuevos datos. -->
 
-- Revisar nuevos datos.
+Los datos TO_EM_v2 y EM_TO_v2 no tienen el mismo formato. No los he utilizado.
+
+- Necesario usar kmeans? no creo... reviasr.
 - Documentar.
 - tablero
