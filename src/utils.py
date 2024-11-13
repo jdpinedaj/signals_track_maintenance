@@ -712,14 +712,19 @@ def load_anomalies(folder_path: str) -> dict:
     return anomaly_data
 
 
-def plot_anomalies(anomaly_data: dict, x_axis: str = "Anomaly_Time") -> go.Figure:
+def plot_anomalies(
+    anomaly_data: dict,
+    x_axis: str = "Anomaly_Time",
+    route_key: str = None,
+) -> go.Figure:
     """
-    Plot anomalies using Plotly as histograms, with interactive controls for x-axis selection.
+    Plot anomalies using Plotly as histograms and scatter plots with interactive controls for x-axis selection.
     Args:
         anomaly_data (dict): Dictionary with anomaly dataframes.
         x_axis (str): Column name for x-axis, either "Anomaly_Time" or "Kilometer_Ref_Fixed_Km".
+        route_key (str): Current route key to be used in the plot labels.
     Returns:
-        go.Figure: Plotly figure with overlaid anomaly histogram plots.
+        go.Figure: Plotly figure with overlaid anomaly histogram and scatter plots.
     """
     fig = go.Figure()
 
@@ -734,10 +739,15 @@ def plot_anomalies(anomaly_data: dict, x_axis: str = "Anomaly_Time") -> go.Figur
         "acc_lat_axle_box_ms2": "Lateral Axle",
     }
 
+    # Set bin size to 0.1 seconds for time or (1/10) km for kilometer
+    bin_size = 0.1 if x_axis == "Anomaly_Time" else 1 / 10
+
     for key, data in anomaly_data.items():
-        # Extract route, acceleration, and anomaly type from the filename
+        # Use route_key as the route name directly, if provided
+        route = route_key if route_key else "_".join(key.split("_")[:2])
+
+        # Extract acceleration and anomaly type from the filename
         parts = key.split("_")
-        route = "_".join(parts[:2])  # Route name (e.g., RA_AP)
         acceleration_code = "_".join(parts[2:-2])  # Acceleration code
         anomaly_type = parts[-1]  # Anomaly type
 
@@ -745,7 +755,6 @@ def plot_anomalies(anomaly_data: dict, x_axis: str = "Anomaly_Time") -> go.Figur
         acceleration = acceleration_labels.get(acceleration_code, acceleration_code)
 
         # Create a scatter plot trace for each (acceleration, anomaly type) combination
-        # Adding scatterplot
         fig.add_trace(
             go.Scatter(
                 x=data[x_axis],
@@ -756,7 +765,8 @@ def plot_anomalies(anomaly_data: dict, x_axis: str = "Anomaly_Time") -> go.Figur
                 marker=dict(color=colors[color_index % len(colors)]),
             )
         )
-        # Adding histogram
+
+        # Create histogram for each (acceleration, anomaly type) combination
         fig.add_trace(
             go.Histogram(
                 x=data[x_axis],
@@ -764,6 +774,11 @@ def plot_anomalies(anomaly_data: dict, x_axis: str = "Anomaly_Time") -> go.Figur
                 name=f"{route} - {acceleration} - {anomaly_type}",
                 marker=dict(color=colors[color_index % len(colors)]),
                 opacity=0.6,
+                xbins=dict(
+                    start=data[x_axis].min(),
+                    end=data[x_axis].max(),
+                    size=bin_size,
+                ),
             )
         )
         color_index += 1
@@ -775,7 +790,7 @@ def plot_anomalies(anomaly_data: dict, x_axis: str = "Anomaly_Time") -> go.Figur
         yaxis_title="Anomaly Frequency",
         barmode="overlay",  # Overlay histograms for comparison
         legend_title="Route - Acceleration - Anomaly Type",
-        template="plotly_dark",
+        # template="plotly_dark",
     )
 
     return fig

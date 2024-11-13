@@ -8,14 +8,15 @@ data_to_analyze:
     CV_AD: "Datos_200711-094823_CV_AD.mat"
     AD_AP: "Datos_200711-101450_AD_AP.mat"
     TA_TO: "Datos_200711-121631_TA_TO.mat"
-    TO_EM_v2: "Datos_200711-122021_TO_EM_v2.mat"
+    # TO_EM_v2: "Datos_200711-122021_TO_EM_v2.mat"
     EM_SE: "Datos_200711-124251_EM_SE.mat"
     BE_BU: "Datos_200711-131013_BE_BU.mat"
     EM_CP: "Datos_200712-083245_EM_CP.mat"
     EP_EL: "Datos_200712-085304_EP_EL.mat"
     LL_PA: "Datos_200712-090845_LL_PA.mat"
     PA_EM: "Datos_200712-093600_PA_EM.mat"
-    EM_TO_v2: "Datos_200712-094430_EM_TO_v2.mat"
+    # EM_TO_v2: "Datos_200712-094430_EM_TO_v2.mat"
+    TO_VC: "Datos_200712-100322_TO_VC.mat"
     JE_AD: "Datos_200712-121007_JE_AD.mat"
   accelerations:
     vertical_left_axle: "acc_vert_left_axle_box_ms2"
@@ -23,7 +24,7 @@ data_to_analyze:
     lateral_axle: "acc_lat_axle_box_ms2"
   # Selected file and acceleration
   selected_file_key: "RA_AP"
-  selected_acceleration_key: "lateral_axle"
+  selected_acceleration_key: "vertical_right_axle"
 
 paths:
   data_path: "data/Datos_Matlab"
