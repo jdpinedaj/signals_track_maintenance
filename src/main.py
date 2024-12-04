@@ -76,6 +76,7 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
         magnitude_spectrogram_acc,
         X_prime_acc,
         total_time_acc,
+        kilometer_ref_resampled,
     ) = short_term_fourier_transform_stft(
         signal=signal_acc_mat,
         sampling_frequency_stft=APPCFG.sampling_frequency_stft_prepared,
@@ -83,9 +84,10 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
         overlap=APPCFG.overlap,
         gamma=APPCFG.gamma,
         time_column=time_column_mat,
+        kilometer_ref=kilometer_ref,
         nfft=APPCFG.nfft_prepared,
     )
-    plot_stft_results(
+    fig_stft = plot_stft_results(
         frequencies_acc,
         times_acc,
         magnitude_spectrogram_acc,
@@ -115,18 +117,19 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
     anomalies_kmeans = identify_anomalies_kmeans(
         reduced_features_scaled, mbkmeans, percentile=APPCFG.percentile_kmeans
     )
-    plot_clusters_and_anomalies_kmeans(
-        times_acc,
-        reduced_features_scaled,
-        labels,
-        anomalies_kmeans,
+    fig_kmeans = plot_clusters_and_anomalies_kmeans(
+        x_axis=kilometer_ref_resampled,
+        data=reduced_features_scaled,
+        labels=labels,
+        anomalies=anomalies_kmeans,
+        x_axis_label="Mileage traveled [km]",
         save_path=APPCFG.get_anomalies_filename("kmeans", file_extension="png"),
     )
     save_anomalies_to_csv(
         anomalies_kmeans,
         times_acc,
         frequencies_acc,
-        kilometer_ref,
+        kilometer_ref_resampled,
         APPCFG.get_anomalies_filename("kmeans"),
     )
 
@@ -134,7 +137,7 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
     distances_from_mean, threshold, anomalies_distance = identify_anomalies_distance(
         magnitude_spectrogram_acc
     )
-    plot_clusters_and_anomalies_distance(
+    fig_distance = plot_clusters_and_anomalies_distance(
         times_acc,
         anomalies_distance,
         distances_from_mean,
@@ -163,6 +166,8 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
     logger.info(
         f"Distance time range: {times_acc[np.where(anomalies_distance)[0]].min()} to {times_acc[np.where(anomalies_distance)[0]].max()}"
     )
+
+    return
 
 
 #!##########################################
