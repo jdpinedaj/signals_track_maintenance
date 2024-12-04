@@ -24,7 +24,7 @@ data_to_analyze:
     lateral_axle: "acc_lat_axle_box_ms2"
   # Selected file and acceleration
   selected_file_key: "RA_AP"
-  selected_acceleration_key: "vertical_right_axle"
+  selected_acceleration_key: "vertical_left_axle"
 
 paths:
   data_path: "data/Datos_Matlab"

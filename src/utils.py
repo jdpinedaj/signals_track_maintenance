@@ -14,6 +14,7 @@ from typing import Tuple, Optional, NoReturn
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.cluster import MiniBatchKMeans, KMeans
 from sklearn.preprocessing import StandardScaler
+from scipy.interpolate import interp1d
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -268,10 +269,11 @@ def short_term_fourier_transform_stft(
     overlap: float,
     gamma: float,
     time_column: pd.Series,
+    kilometer_ref: pd.Series,  # Add kilometer reference as input
     nfft: float,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Compute the Short-Term Fourier Transform (STFT) of a signal.
+    Compute the Short-Term Fourier Transform (STFT) of a signal and align kilometer distances.
     Args:
         signal (numpy.ndarray): Input signal.
         sampling_frequency_stft (float): Sampling frequency in Hz.
@@ -279,13 +281,15 @@ def short_term_fourier_transform_stft(
         overlap (float): Overlap fraction.
         gamma (float): Dynamic margin.
         time_column (pandas.Series): Time column.
-        nfft (float): Length of the FFT used.
+        kilometer_ref (pandas.Series): Kilometer reference column to align with STFT results.
+        nfft (float): Length of the Fast Fourier Transform (FFT) used.
     Returns:
         frequencies (numpy.ndarray): Frequency vector.
         times (numpy.ndarray): Time vector.
         magnitude_spectrogram (numpy.ndarray): Magnitude spectrogram.
         X_prime (numpy.ndarray): Normalized spectrogram.
         total_time (numpy.ndarray): Total time vector.
+        kilometer_ref_resampled (numpy.ndarray): Kilometer reference aligned to STFT time points.
     """
 
     # Initial setup
@@ -340,7 +344,20 @@ def short_term_fourier_transform_stft(
     )
     X_prime = np.clip(X_prime / gamma, 0, 1)
 
-    return frequencies, times, magnitude_spectrogram, X_prime, total_time
+    # Resample kilometer reference to match STFT times
+    original_time = np.linspace(0, len(kilometer_ref) - 1, num=len(kilometer_ref))
+    reduced_time = np.linspace(0, len(kilometer_ref) - 1, num=len(times))
+    interp_func = interp1d(original_time, kilometer_ref, kind="linear")
+    kilometer_ref_resampled = interp_func(reduced_time)
+
+    return (
+        frequencies,
+        times,
+        magnitude_spectrogram,
+        X_prime,
+        total_time,
+        kilometer_ref_resampled,
+    )
 
 
 def plot_stft_results(
@@ -351,7 +368,7 @@ def plot_stft_results(
     total_time: np.ndarray,
     signal: np.ndarray,
     save_path: str = None,
-) -> NoReturn:
+) -> plt.Figure:
     """
     Plot the results of the STFT analysis.
     Args:
@@ -363,7 +380,7 @@ def plot_stft_results(
         signal (numpy.ndarray): Input signal.
         save_path (str): Path to save the plot.
     Returns:
-        None
+        plt.Figure: The matplotlib figure object containing the plot.
     """
 
     # Plotting the results
@@ -402,12 +419,10 @@ def plot_stft_results(
     plt.tight_layout()
 
     # If save_path is not None, save the plot
-    if save_path is not None:
-        plt.savefig(save_path)
-    else:
-        plt.show()
+    if save_path:
+        fig.savefig(save_path)
 
-    plt.close()
+    return fig
 
 
 def preprocess_and_reduce(
@@ -545,46 +560,44 @@ def identify_anomalies_kmeans(
 
 
 def plot_clusters_and_anomalies_kmeans(
-    times: np.ndarray,
+    x_axis: np.ndarray,
     data: np.ndarray,
     labels: np.ndarray,
     anomalies: np.ndarray,
+    x_axis_label: str = "Time",
     save_path: str = None,
-) -> None:
+) -> plt.Figure:
     """
-    Plot clustering results and anomalies based on K-means clustering.
-    This function visualizes the clustering results and identified anomalies
-    using a scatter plot. Each data point is colored according to its cluster
-    assignment, and anomalies are highlighted with red 'x' markers.
+    Plot clustering results and anomalies, supporting time or kilometer as x-axis.
     Args:
-        times (numpy.ndarray): Array of time values for x-axis
-        data (numpy.ndarray): Input data, where each row is a data point
-        labels (numpy.ndarray): Cluster labels for each data point
-        anomalies (numpy.ndarray): Boolean array indicating anomalies
-        save_path (str, optional): Path to save the plot image. If None, the plot will not be saved.
-
+        x_axis (numpy.ndarray): X-axis values (time or kilometer reference).
+        data (numpy.ndarray): Input data (e.g., PCA reduced features).
+        labels (numpy.ndarray): Cluster labels for each data point.
+        anomalies (numpy.ndarray): Boolean array indicating anomalies.
+        x_axis_label (str): Label for the x-axis (default: "Time").
+        save_path (str, optional): Path to save the plot image.
     Returns:
-        None: This function only produces a plot and does not return any value
+        plt.Figure: The matplotlib figure object containing the plot.
     """
-    plt.figure(figsize=(12, 6))
-    scatter = plt.scatter(times, data[:, 0], c=labels, cmap="viridis", alpha=0.5)
-    plt.scatter(
-        times[anomalies], data[anomalies, 0], color="red", marker="x", label="Anomalies"
+    fig, ax = plt.subplots(figsize=(12, 6))
+    scatter = plt.scatter(x_axis, data[:, 0], c=labels, cmap="viridis", alpha=0.5)
+    ax.scatter(
+        x_axis[anomalies],
+        data[anomalies, 0],
+        color="red",
+        marker="x",
+        label="Anomalies",
     )
-    plt.colorbar(scatter, label="Cluster")
-    plt.xlabel("Time")
-    plt.ylabel("Distance to nearest cluster center")
-    plt.title("K-means Clustering and Anomaly Detection")
-    plt.legend()
+    fig.colorbar(scatter, ax=ax, label="Cluster")
+    ax.set_xlabel(x_axis_label)
+    ax.set_ylabel("Distance to Nearest Cluster Center")
+    ax.set_title("K-means Clustering and Anomaly Detection")
+    ax.legend()
 
-    # If save_path is provided, save the plot to the specified location
     if save_path:
-        plt.savefig(save_path)
-        logger.info(f"Plot saved to {save_path}")
-    else:
-        plt.show()
+        fig.savefig(save_path)
 
-    plt.close()
+    return fig
 
 
 def identify_anomalies_distance(
@@ -615,50 +628,61 @@ def identify_anomalies_distance(
 
 
 def plot_clusters_and_anomalies_distance(
-    times: np.ndarray,
+    x_axis: np.ndarray,
     anomalies: np.ndarray,
     distances_from_mean: np.ndarray,
     threshold: float,
+    x_axis_label: str = "Time",
     save_path: str = None,
-) -> None:
+) -> plt.Figure:
     """
-    Plot clustering results and anomalies based on distance from mean.
+    Plot clustering results and anomalies based on distance from mean, with a flexible x-axis.
+
     Args:
-        times (numpy.ndarray): Time array
+        x_axis (numpy.ndarray): Array of values for the x-axis (e.g., Time or Kilometer Reference)
         anomalies (numpy.ndarray): Boolean array indicating anomalies
         distances_from_mean (numpy.ndarray): Array of distances from mean
-        threshold (float): Threshold for anomaly detection. It is calculated from
-            the function identify_anomalies_distance, and the equation is
-            mean_distance + 2 * standard_deviation
+        threshold (float): Threshold for anomaly detection. Calculated as mean + 2*std deviation
+        x_axis_label (str, optional): Label for the x-axis (default is "Time")
         save_path (str, optional): Path to save the plot image. If None, the plot will not be saved.
 
     Returns:
-        None
+        plt.Figure: The matplotlib figure object containing the plot.
     """
-    plt.figure(figsize=(12, 6))
-    plt.plot(times, distances_from_mean)
-    plt.scatter(times[anomalies], distances_from_mean[anomalies], c="red", marker="x")
-    plt.axhline(threshold, color="r", linestyle="--", label="Threshold")
-    plt.xlabel("Time")
-    plt.ylabel("Distance from Mean")
-    plt.title("Distance from Mean and Anomalies")
-    plt.legend()
+    # Create the figure and axis
+    fig, ax = plt.subplots(figsize=(12, 6))
 
-    # If save_path is provided, save the plot to the specified location
+    # Plot distances and anomalies
+    ax.plot(x_axis, distances_from_mean, label="Distance from Mean")
+    ax.scatter(
+        x_axis[anomalies],
+        distances_from_mean[anomalies],
+        c="red",
+        marker="x",
+        label="Anomalies",
+    )
+
+    # Plot threshold line
+    ax.axhline(threshold, color="r", linestyle="--", label="Threshold")
+
+    # Add labels and title
+    ax.set_xlabel(x_axis_label)
+    ax.set_ylabel("Distance from Mean")
+    ax.set_title("Distance from Mean and Anomalies")
+    ax.legend()
+
+    # Save or display the plot
     if save_path:
-        plt.savefig(save_path)
-        logger.info(f"Plot saved to {save_path}")
-    else:
-        plt.show()
+        fig.savefig(save_path)
 
-    plt.close()
+    return fig
 
 
 def save_anomalies_to_csv(
     anomalies: np.ndarray,
     times: np.ndarray,
     frequencies: np.ndarray,
-    kilometer_ref: np.ndarray,
+    kilometer_ref_resampled: np.ndarray,
     filename: str,
 ) -> None:
     """
@@ -667,22 +691,21 @@ def save_anomalies_to_csv(
         anomalies (numpy.ndarray): Boolean array indicating anomalies
         times (numpy.ndarray): Array of time values
         frequencies (numpy.ndarray): Array of frequency values
-        kilometer_ref (numpy.ndarray): Array of kilometer values
+        kilometer_ref_resampled (numpy.ndarray): Resampled kilometer reference values
         filename (str): Name of the CSV file to save the anomalies
-
     Returns:
         None
     """
     anomaly_indices = np.where(anomalies)[0]
     anomaly_times = times[anomaly_indices]
     anomaly_frequencies = frequencies[anomaly_indices % len(frequencies)]
-    anomaly_kilometers = kilometer_ref.iloc[anomaly_indices].values
+    anomaly_kilometers = kilometer_ref_resampled[anomaly_indices]
 
     df = pd.DataFrame(
         {
             "Anomaly_Index": anomaly_indices,
             "Anomaly_Time": anomaly_times,
-            "Kilometer_Ref_Fixed_Km": anomaly_kilometers,
+            "Kilometer_Ref_Aligned": anomaly_kilometers,
             "Anomaly_Frequency": anomaly_frequencies,
         }
     )
@@ -721,7 +744,7 @@ def plot_anomalies(
     Plot anomalies using Plotly as histograms and scatter plots with interactive controls for x-axis selection.
     Args:
         anomaly_data (dict): Dictionary with anomaly dataframes.
-        x_axis (str): Column name for x-axis, either "Anomaly_Time" or "Kilometer_Ref_Fixed_Km".
+        x_axis (str): Column name for x-axis, either "Anomaly_Time" or "Kilometer_Ref_Aligned".
         route_key (str): Current route key to be used in the plot labels.
     Returns:
         go.Figure: Plotly figure with overlaid anomaly histogram and scatter plots.
