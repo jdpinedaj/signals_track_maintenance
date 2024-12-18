@@ -17,7 +17,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from src.utils import (
     preprocess_mat_data,
     short_term_fourier_transform_stft,
-    plot_stft_results,
+    plot_stft_results_with_zero_mean,
     preprocess_and_reduce,
     find_optimal_clusters,
     apply_MiniBatchKMeans,
@@ -30,6 +30,8 @@ from src.utils import (
 from src.logs import logger
 from src.load_config import LoadConfig
 
+APPCFG = LoadConfig()
+
 
 #!##########################################
 #!############# FUNCTIONS ##################
@@ -37,19 +39,14 @@ from src.load_config import LoadConfig
 
 
 def process_data_and_analyze(file_key: str, accel_key: str) -> None:
-    # Load the configuration
-    APPCFG = LoadConfig()
-
     # Set the file and acceleration keys dynamically
     APPCFG.mat_data = os.path.join(
         APPCFG.data_path, APPCFG.data_to_analyze["data_files"][file_key]
     )
     APPCFG.acceleration_to_analyze = APPCFG.data_to_analyze["accelerations"][accel_key]
 
-    # Update anomalies path to include the specific file and acceleration key
-    APPCFG.anomalies_path = os.path.join(
-        APPCFG.anomalies_base_path, file_key  # , accel_key
-    )
+    # Update anomalies path dynamically
+    APPCFG.anomalies_path = os.path.join(APPCFG.anomalies_base_path, file_key)
     os.makedirs(APPCFG.anomalies_path, exist_ok=True)
 
     logger.info(f"Processing file: {APPCFG.mat_data}")
@@ -87,14 +84,18 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
         kilometer_ref=kilometer_ref,
         nfft=APPCFG.nfft_prepared,
     )
-    fig_stft = plot_stft_results(
+    fig_stft = plot_stft_results_with_zero_mean(
         frequencies_acc,
         times_acc,
         magnitude_spectrogram_acc,
         X_prime_acc,
         total_time_acc,
         signal_acc_mat,
-        save_path=APPCFG.get_anomalies_filename("stft", file_extension="png"),
+        save_path=APPCFG.get_anomalies_filename(
+            anomaly_type="stft",
+            file_key=file_key,
+            file_extension="png",
+        ),
     )
 
     # Step 3: Dimensionality reduction
@@ -108,7 +109,9 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
         reduced_features_scaled,
         max_k,
         save_path=APPCFG.get_anomalies_filename(
-            "optimal_clusters", file_extension="png"
+            anomaly_type="optimal_clusters",
+            file_key=file_key,
+            file_extension="png",
         ),
     )
     mbkmeans, labels = apply_MiniBatchKMeans(reduced_features_scaled, optimal_k)
@@ -123,14 +126,18 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
         labels=labels,
         anomalies=anomalies_kmeans,
         x_axis_label="Mileage traveled [km]",
-        save_path=APPCFG.get_anomalies_filename("kmeans", file_extension="png"),
+        save_path=APPCFG.get_anomalies_filename(
+            anomaly_type="kmeans",
+            file_key=file_key,
+            file_extension="png",
+        ),
     )
     save_anomalies_to_csv(
         anomalies_kmeans,
         times_acc,
         frequencies_acc,
         kilometer_ref_resampled,
-        APPCFG.get_anomalies_filename("kmeans"),
+        APPCFG.get_anomalies_filename(file_key=file_key, anomaly_type="kmeans"),
     )
 
     # Step 6: Detect anomalies using distance from mean
@@ -138,18 +145,23 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
         magnitude_spectrogram_acc
     )
     fig_distance = plot_clusters_and_anomalies_distance(
-        times_acc,
-        anomalies_distance,
-        distances_from_mean,
-        threshold,
-        save_path=APPCFG.get_anomalies_filename("distance", file_extension="png"),
+        x_axis=kilometer_ref_resampled,
+        anomalies=anomalies_kmeans,
+        distances_from_mean=distances_from_mean,
+        threshold=threshold,
+        x_axis_label="Mileage traveled [km]",
+        save_path=APPCFG.get_anomalies_filename(
+            anomaly_type="distance",
+            file_key=file_key,
+            file_extension="png",
+        ),
     )
     save_anomalies_to_csv(
         anomalies_distance,
         times_acc,
         frequencies_acc,
         kilometer_ref,
-        APPCFG.get_anomalies_filename("distance"),
+        APPCFG.get_anomalies_filename(file_key=file_key, anomaly_type="distance"),
     )
 
     # Step 7: Print a summary of the results
@@ -192,17 +204,28 @@ def main():
     )
     args = parser.parse_args()
 
+    # If arguments are provided, process a single file and acceleration
     if args.file_key and args.accel_key:
-        # Run with specified arguments
         process_data_and_analyze(args.file_key, args.accel_key)
     else:
-        # Loop through all combinations
-        data_files = ["RA_AP", "PX_RA", "RA_AD"]  # Update this list as needed
-        accelerations = ["vertical_left_axle", "vertical_right_axle", "lateral_axle"]
+        # Otherwise, loop through all files and accelerations
+        data_to_avoid = []  # Add any keys to skip here
+        accel_to_avoid = []  # Add any keys to skip here
 
-        for file_key in data_files:
-            for accel_key in accelerations:
-                process_data_and_analyze(file_key, accel_key)
+        for key in APPCFG.data_to_analyze["data_files"].keys():
+            if key in data_to_avoid:
+                continue
+
+            for accel_key in APPCFG.data_to_analyze["accelerations"].keys():
+                if accel_key in accel_to_avoid:
+                    continue
+
+                logger.info(f"Processing file: {key}, and acceleration: {accel_key}")
+                process_data_and_analyze(key, accel_key)
+                logger.info(
+                    f"Finished processing file: {key}, and acceleration: {accel_key}"
+                )
+                logger.info("\n\n\n")
 
 
 if __name__ == "__main__":

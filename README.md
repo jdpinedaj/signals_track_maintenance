@@ -33,5 +33,7 @@ The main files of the project are:
 <!-- - Revisar nuevos datos. -->
 
 - Include different versions of TO_EM_v2 and EM_TO_v2.
-- Dashboard?
+<!-- - Dashboard? -->
+- Organize the last plot of stft to align in vertically.
+- Add combined anomalies in the dashboard.
 - Improve README.

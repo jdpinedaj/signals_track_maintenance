@@ -418,9 +418,90 @@ def plot_stft_results(
     # Adjust layout
     plt.tight_layout()
 
-    # If save_path is not None, save the plot
+    # Save to file if save_path is provided
     if save_path:
-        fig.savefig(save_path)
+        plt.savefig(save_path, format="png")
+        plt.close()
+    else:
+        plt.show()
+
+    return fig
+
+
+def plot_stft_results_with_zero_mean(
+    frequencies: np.ndarray,
+    times: np.ndarray,
+    magnitude_spectrogram: np.ndarray,
+    X_prime: np.ndarray,
+    total_time: np.ndarray,
+    signal: np.ndarray,
+    save_path: str = None,
+) -> plt.Figure:
+    """
+    Plot the results of the STFT analysis with zero-mean adjustment for the signal.
+    Args:
+        frequencies (numpy.ndarray): Frequency vector.
+        times (numpy.ndarray): Time vector.
+        magnitude_spectrogram (numpy.ndarray): Magnitude spectrogram.
+        X_prime (numpy.ndarray): Normalized spectrogram.
+        total_time (numpy.ndarray): Total time vector.
+        signal (numpy.ndarray): Input signal.
+        save_path (str): Path to save the plot.
+    Returns:
+        plt.Figure: The matplotlib figure object containing the plot.
+    """
+    # Remove the offset to make the signal zero-mean
+    zero_mean_signal = signal - np.mean(signal)
+
+    # Update the normalized spectrogram based on the zero-mean signal
+    epsilon = 10 ** (-20 / 20)  # Adjusted small positive constant for stability
+    max_magnitude = np.max(magnitude_spectrogram)
+    normalized_spectrogram = (
+        20 * np.log10(magnitude_spectrogram / (max_magnitude / 2) + epsilon) + 20
+    ) / 20
+    normalized_spectrogram = np.clip(normalized_spectrogram, 0, 1)
+
+    # Plotting the results
+    fig, axs = plt.subplots(
+        3, 1, figsize=(10, 8), gridspec_kw={"height_ratios": [1, 1, 1.2]}
+    )
+
+    # Plot 1: Original Spectrogram
+    axs[0].set_title("Original Spectrogram")
+    img1 = axs[0].pcolormesh(
+        times, frequencies, magnitude_spectrogram, cmap="jet", shading="gouraud"
+    )
+    axs[0].set_ylabel("Frequency [Hz]")
+    axs[0].set_xlabel("Time [sec]")
+    fig.colorbar(img1, ax=axs[0], label="Intensity [dB]")
+    axs[0].grid(True)
+
+    # Plot 2: Normalized Spectrogram (using zero-mean normalization)
+    axs[1].set_title("Normalized Spectrogram (Zero-Mean Adjusted)")
+    img2 = axs[1].pcolormesh(
+        times, frequencies, normalized_spectrogram, cmap="jet", shading="gouraud"
+    )
+    axs[1].set_ylabel("Frequency [Hz]")
+    axs[1].set_xlabel("Time [sec]")
+    fig.colorbar(img2, ax=axs[1], label="Intensity [dB]")
+    axs[1].grid(True)
+
+    # Plot 3: Acceleration over Time (Zero-Mean Adjusted)
+    axs[2].set_title("Acceleration over Time (Zero-Mean)")
+    axs[2].plot(total_time, zero_mean_signal, "g")
+    axs[2].set_xlabel("Time [sec]")
+    axs[2].set_ylabel("Acceleration [m/s^2]")
+    axs[2].grid(True)
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Save to file if save_path is provided
+    if save_path:
+        plt.savefig(save_path, format="png")
+        plt.close()
+    else:
+        plt.show()
 
     return fig
 
@@ -594,8 +675,12 @@ def plot_clusters_and_anomalies_kmeans(
     ax.set_title("K-means Clustering and Anomaly Detection")
     ax.legend()
 
+    # Save to file if save_path is provided
     if save_path:
-        fig.savefig(save_path)
+        plt.savefig(save_path, format="png")
+        plt.close()
+    else:
+        plt.show()
 
     return fig
 
@@ -671,9 +756,12 @@ def plot_clusters_and_anomalies_distance(
     ax.set_title("Distance from Mean and Anomalies")
     ax.legend()
 
-    # Save or display the plot
+    # Save to file if save_path is provided
     if save_path:
-        fig.savefig(save_path)
+        plt.savefig(save_path, format="png")
+        plt.close()
+    else:
+        plt.show()
 
     return fig
 
@@ -814,6 +902,66 @@ def plot_anomalies(
         barmode="overlay",  # Overlay histograms for comparison
         legend_title="Route - Acceleration - Anomaly Type",
         # template="plotly_dark",
+    )
+
+    return fig
+
+
+def plot_anomalies_streamlit(
+    anomaly_data_kmeans: pd.DataFrame,
+    anomaly_data_distance: pd.DataFrame,
+    x_axis: str = "Anomaly_Time",
+) -> go.Figure:
+    """
+    Plot anomalies using Plotly as histograms and scatter plots with interactive controls for x-axis selection.
+    """
+    fig = go.Figure()
+
+    # Define colors for differentiation
+    colors = px.colors.qualitative.Plotly
+    color_index = 0
+
+    # Labels for different accelerations
+    acceleration_labels = {
+        "acc_vert_left_axle_box_ms2": "Vertical Left Axle",
+        "acc_vert_right_axle_box_ms2": "Vertical Right Axle",
+        "acc_lat_axle_box_ms2": "Lateral Axle",
+    }
+
+    # Plot data for KMeans and Distance-Based detection
+    for method, data in [
+        ("KMeans", anomaly_data_kmeans),
+        ("Distance-Based", anomaly_data_distance),
+    ]:
+        for accel_col, label in acceleration_labels.items():
+            if accel_col in data.columns:
+                fig.add_trace(
+                    go.Scatter(
+                        x=data[x_axis],
+                        y=data[accel_col],
+                        mode="markers",
+                        name=f"{method} - {label}",
+                        marker=dict(color=colors[color_index % len(colors)]),
+                    )
+                )
+                fig.add_trace(
+                    go.Histogram(
+                        x=data[x_axis],
+                        y=data[accel_col],
+                        name=f"{method} - {label} (Histogram)",
+                        marker=dict(color=colors[color_index % len(colors)]),
+                        opacity=0.6,
+                    )
+                )
+                color_index += 1
+
+    # Update layout
+    fig.update_layout(
+        title="Anomaly Visualization for KMeans and Distance-Based Methods",
+        xaxis_title=x_axis,
+        yaxis_title="Anomaly Frequency",
+        barmode="overlay",
+        legend_title="Method - Acceleration",
     )
 
     return fig

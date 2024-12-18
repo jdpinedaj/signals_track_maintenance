@@ -119,18 +119,32 @@ class LoadConfig:
         self.percentile_kmeans = anomalies["percentile_kmeans"]
 
     def get_anomalies_filename(
-        self, anomaly_type: str, file_extension: str = "csv"
+        self,
+        anomaly_type: str,
+        file_key: str = None,
+        acceleration_key: str = None,
+        file_extension: str = "csv",
     ) -> str:
         """
         Constructs the full path for saving the anomalies file, based on the anomaly type and file extension.
 
         Args:
-            anomaly_type (str): Type of anomaly (e.g., 'distance', 'kmeans').
+            anomaly_type (str): Type of anomaly (e.g., 'stft', 'distance', 'kmeans').
+            file_key (str): Key of the data file being processed. Defaults to `self.selected_file_key`.
+            acceleration_key (str): Key of the acceleration being processed. Defaults to `self.acceleration_to_analyze`.
             file_extension (str): File extension (e.g., 'csv', 'png'). Defaults to 'csv'.
 
         Returns:
-            str: Full path for the anomalies file, using the .mat file name and acceleration type.
+            str: Full path for the anomalies file.
         """
-        # mat_file_base = os.path.basename(self.mat_data).split(".")[0]
-        filename = f"{self.selected_file_key}_{self.acceleration_to_analyze}_anomalies_{anomaly_type}.{file_extension}"
+        # Use provided keys if available; fallback to defaults
+        file_key = file_key if file_key else self.selected_file_key
+        acceleration_key = (
+            acceleration_key if acceleration_key else self.acceleration_to_analyze
+        )
+
+        # Construct the filename
+        filename = (
+            f"{file_key}_{acceleration_key}_anomalies_{anomaly_type}.{file_extension}"
+        )
         return os.path.join(self.anomalies_path, filename)
