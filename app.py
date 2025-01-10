@@ -1,3 +1,6 @@
+# poetry run streamlit run app.py
+
+
 import streamlit as st
 import os
 import numpy as np
@@ -96,7 +99,7 @@ def main():
     with tab1:
         st.subheader("Raw Data Visualization")
         if "data" in st.session_state:
-            st.dataframe(st.session_state.data["df"].head())
+            st.dataframe(st.session_state.data["df"])
         else:
             st.warning("Data not available. Please process the uploaded file.")
 
@@ -109,7 +112,6 @@ def main():
                     frequencies_acc,
                     times_acc,
                     magnitude_spectrogram_acc,
-                    X_prime_acc,
                     total_time_acc,
                     kilometer_ref_resampled,
                 ) = short_term_fourier_transform_stft(
@@ -120,18 +122,18 @@ def main():
                     gamma=APPCFG.gamma,
                     time_column=st.session_state.data["time_column"],
                     kilometer_ref=st.session_state.data["kilometer_ref"],
-                    nfft=128,
+                    nfft=APPCFG.nfft_prepared,
                 )
                 fig_stft = plot_stft_results_with_zero_mean(
                     frequencies_acc,
                     times_acc,
                     magnitude_spectrogram_acc,
-                    X_prime_acc,
                     total_time_acc,
                     st.session_state.signal,
                 )
                 st.pyplot(fig_stft)
                 st.session_state.stft_data = {
+                    "frequencies": frequencies_acc,
                     "magnitude_spectrogram": magnitude_spectrogram_acc,
                     "kilometer_ref_resampled": kilometer_ref_resampled,
                 }
@@ -154,41 +156,51 @@ def main():
                     reduced_features_scaled, optimal_k
                 )
                 anomalies_kmeans = identify_anomalies_kmeans(
-                    reduced_features_scaled, mbkmeans, percentile=98
+                    reduced_features_scaled,
+                    mbkmeans,
+                    percentile=APPCFG.percentile_kmeans,
                 )
-                anomaly_indices = np.where(anomalies_kmeans)[
-                    0
-                ]  # Get indices of anomalies
 
                 fig_kmeans = plot_clusters_and_anomalies_kmeans(
                     x_axis=stft_data["kilometer_ref_resampled"],
                     data=reduced_features_scaled,
                     labels=labels,
                     anomalies=anomalies_kmeans,
-                    x_axis_label="Kilometers",
+                    x_axis_label="Mileage traveled [km]",
                 )
                 st.pyplot(fig_kmeans)
 
-                # Save KMeans anomalies for visualization
-                st.session_state.kmeans_anomalies_df = pd.DataFrame(
+                # Create DataFrame for KMeans anomalies using adjusted logic
+                anomaly_indices_kmeans = np.where(anomalies_kmeans)[0]
+                anomaly_times = times_acc[anomaly_indices_kmeans]
+                anomaly_frequencies = frequencies_acc[
+                    anomaly_indices_kmeans % len(frequencies_acc)
+                ]
+                anomaly_kilometers = stft_data["kilometer_ref_resampled"][
+                    anomaly_indices_kmeans
+                ]
+
+                # Create DataFrame for KMeans anomalies
+                kmeans_anomalies_df = pd.DataFrame(
                     {
-                        "Anomaly_Time": st.session_state.data["time_column"]
-                        .iloc[anomaly_indices]
-                        .values,
-                        "Kilometer_Ref_Aligned": stft_data["kilometer_ref_resampled"][
-                            anomaly_indices
-                        ],
-                        "acc_vert_left_axle_box_ms2": reduced_features_scaled[
-                            anomaly_indices, 0
-                        ],
-                        "acc_vert_right_axle_box_ms2": reduced_features_scaled[
-                            anomaly_indices, 1
-                        ],
-                        "acc_lat_axle_box_ms2": reduced_features_scaled[
-                            anomaly_indices, 2
-                        ],
+                        "Anomaly_Index": anomaly_indices_kmeans,
+                        "Anomaly_Time": anomaly_times,
+                        "Kilometer_Ref_Aligned": anomaly_kilometers,
+                        "Anomaly_Frequency": anomaly_frequencies,
                     }
                 )
+
+                # Display the DataFrame
+                st.dataframe(kmeans_anomalies_df)
+
+                # Add a download button
+                st.download_button(
+                    label="Download KMeans Anomalies as CSV",
+                    data=kmeans_anomalies_df.to_csv(index=False),
+                    file_name="kmeans_anomalies.csv",
+                    mime="text/csv",
+                )
+
             except Exception as e:
                 st.error(f"Error during KMeans clustering: {e}")
         else:
@@ -203,36 +215,48 @@ def main():
                 distances_from_mean, threshold, anomalies_distance = (
                     identify_anomalies_distance(stft_data["magnitude_spectrogram"])
                 )
-                anomaly_indices = np.where(anomalies_distance)[
-                    0
-                ]  # Get indices of anomalies
 
                 fig_distance = plot_clusters_and_anomalies_distance(
                     x_axis=stft_data["kilometer_ref_resampled"],
                     anomalies=anomalies_distance,
                     distances_from_mean=distances_from_mean,
                     threshold=threshold,
-                    x_axis_label="Kilometers",
+                    x_axis_label="Mileage traveled [km]",
                 )
                 st.pyplot(fig_distance)
 
-                # Save Distance-Based anomalies for visualization
-                st.session_state.distance_anomalies_df = pd.DataFrame(
+                # Correct calculation of anomalies
+                anomaly_indices_distance = np.where(anomalies_distance)[0]
+                anomaly_times = times_acc[anomaly_indices_distance]
+                anomaly_frequencies = frequencies_acc[
+                    anomaly_indices_distance % len(frequencies_acc)
+                ]
+                anomaly_kilometers = stft_data["kilometer_ref_resampled"][
+                    anomaly_indices_distance
+                ]
+
+                # Create DataFrame for Distance-Based anomalies
+                distance_anomalies_df = pd.DataFrame(
                     {
-                        "Anomaly_Time": st.session_state.data["time_column"]
-                        .iloc[anomaly_indices]
-                        .values,
-                        "Kilometer_Ref_Aligned": stft_data["kilometer_ref_resampled"][
-                            anomaly_indices
+                        "Anomaly_Index": anomaly_indices_distance,
+                        "Anomaly_Time": anomaly_times,
+                        "Kilometer_Ref_Aligned": anomaly_kilometers,
+                        "Anomaly_Frequency": anomaly_frequencies,
+                        "Distance_From_Mean": distances_from_mean[
+                            anomaly_indices_distance
                         ],
-                        "acc_vert_left_axle_box_ms2": distances_from_mean[
-                            anomaly_indices
-                        ],
-                        "acc_vert_right_axle_box_ms2": distances_from_mean[
-                            anomaly_indices
-                        ],
-                        "acc_lat_axle_box_ms2": distances_from_mean[anomaly_indices],
                     }
+                )
+
+                # Display the DataFrame
+                st.dataframe(distance_anomalies_df)
+
+                # Add a download button
+                st.download_button(
+                    label="Download Distance-Based Anomalies as CSV",
+                    data=distance_anomalies_df.to_csv(index=False),
+                    file_name="distance_anomalies.csv",
+                    mime="text/csv",
                 )
 
             except Exception as e:

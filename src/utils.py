@@ -11,6 +11,7 @@ from scipy.io import loadmat
 from scipy.signal import butter, filtfilt, stft
 from scipy.signal.windows import hamming
 from typing import Tuple, Optional, NoReturn
+from matplotlib.gridspec import GridSpec
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.cluster import MiniBatchKMeans, KMeans
 from sklearn.preprocessing import StandardScaler
@@ -271,7 +272,7 @@ def short_term_fourier_transform_stft(
     time_column: pd.Series,
     kilometer_ref: pd.Series,  # Add kilometer reference as input
     nfft: float,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Compute the Short-Term Fourier Transform (STFT) of a signal and align kilometer distances.
     Args:
@@ -354,7 +355,6 @@ def short_term_fourier_transform_stft(
         frequencies,
         times,
         magnitude_spectrogram,
-        X_prime,
         total_time,
         kilometer_ref_resampled,
     )
@@ -383,39 +383,47 @@ def plot_stft_results(
         plt.Figure: The matplotlib figure object containing the plot.
     """
 
-    # Plotting the results
-    fig, axs = plt.subplots(
-        3, 1, figsize=(10, 8), gridspec_kw={"height_ratios": [1, 1, 1.2]}
-    )
+    # Create the figure and define a GridSpec layout
+    fig = plt.figure(figsize=(10, 8))
+    gs = GridSpec(3, 2, width_ratios=[20, 1], height_ratios=[1, 1, 1.2])
 
     # Plot 1: Original Spectrogram
-    axs[0].set_title("Original Spectrogram")
-    img1 = axs[0].pcolormesh(
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax1.set_title("Original Spectrogram")
+    img1 = ax1.pcolormesh(
         times, frequencies, magnitude_spectrogram, cmap="jet", shading="gouraud"
     )
-    axs[0].set_ylabel("Frequency [Hz]")
-    axs[0].set_xlabel("Time [sec]")
-    fig.colorbar(img1, ax=axs[0], label="Intensity [dB]")
-    # axs[0].set_ylim([0, 1600])
-    axs[0].grid(True)
+    ax1.set_ylabel("Frequency [Hz]")
+    ax1.grid(True)
+
+    # Add colorbar for Plot 1
+    cbar1 = fig.add_subplot(gs[0, 1])
+    fig.colorbar(img1, cax=cbar1, label="Intensity [dB]")
 
     # Plot 2: Normalized Spectrogram
-    axs[1].set_title("Normalized Spectrogram")
-    img2 = axs[1].pcolormesh(times, frequencies, X_prime, cmap="jet", shading="gouraud")
-    axs[1].set_ylabel("Frequency [Hz]")
-    axs[1].set_xlabel("Time [sec]")
-    fig.colorbar(img2, ax=axs[1], label="Intensity [dB]")
-    # axs[1].set_ylim([0, 1600])
-    axs[1].grid(True)
+    ax2 = fig.add_subplot(gs[1, 0])
+    ax2.set_title("Normalized Spectrogram")
+    img2 = ax2.pcolormesh(times, frequencies, X_prime, cmap="jet", shading="gouraud")
+    ax2.set_ylabel("Frequency [Hz]")
+    ax2.grid(True)
+
+    # Add colorbar for Plot 2
+    cbar2 = fig.add_subplot(gs[1, 1])
+    fig.colorbar(img2, cax=cbar2, label="Intensity [dB]")
 
     # Plot 3: Acceleration over Time
-    axs[2].set_title("Acceleration over Time")
-    axs[2].plot(total_time, signal, "g")
-    axs[2].set_xlabel("Time [sec]")
-    axs[2].set_ylabel("Acceleration [m/s^2]")
-    axs[2].grid(True)
+    ax3 = fig.add_subplot(gs[2, 0])
+    ax3.set_title("Acceleration over Time")
+    ax3.plot(total_time, signal, "g")
+    ax3.set_xlabel("Time [sec]")
+    ax3.set_ylabel("Acceleration [m/s^2]")
+    ax3.grid(True)
 
-    # Adjust layout
+    # Adjust layout to ensure x-axes align
+    for ax in [ax1, ax2, ax3]:
+        ax.set_xlim([times.min(), times.max()])
+
+    # Tight layout without overlapping
     plt.tight_layout()
 
     # Save to file if save_path is provided
@@ -432,18 +440,16 @@ def plot_stft_results_with_zero_mean(
     frequencies: np.ndarray,
     times: np.ndarray,
     magnitude_spectrogram: np.ndarray,
-    X_prime: np.ndarray,
     total_time: np.ndarray,
     signal: np.ndarray,
     save_path: str = None,
 ) -> plt.Figure:
     """
-    Plot the results of the STFT analysis with zero-mean adjustment for the signal.
+    Plot the results of the STFT analysis with zero-mean adjustment for the signal and aligned x-axes.
     Args:
         frequencies (numpy.ndarray): Frequency vector.
         times (numpy.ndarray): Time vector.
         magnitude_spectrogram (numpy.ndarray): Magnitude spectrogram.
-        X_prime (numpy.ndarray): Normalized spectrogram.
         total_time (numpy.ndarray): Total time vector.
         signal (numpy.ndarray): Input signal.
         save_path (str): Path to save the plot.
@@ -461,39 +467,49 @@ def plot_stft_results_with_zero_mean(
     ) / 20
     normalized_spectrogram = np.clip(normalized_spectrogram, 0, 1)
 
-    # Plotting the results
-    fig, axs = plt.subplots(
-        3, 1, figsize=(10, 8), gridspec_kw={"height_ratios": [1, 1, 1.2]}
-    )
+    # Create the figure and define a GridSpec layout
+    fig = plt.figure(figsize=(10, 8))
+    gs = GridSpec(3, 2, width_ratios=[20, 1], height_ratios=[1, 1, 1.2])
 
     # Plot 1: Original Spectrogram
-    axs[0].set_title("Original Spectrogram")
-    img1 = axs[0].pcolormesh(
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax1.set_title("Original Spectrogram")
+    img1 = ax1.pcolormesh(
         times, frequencies, magnitude_spectrogram, cmap="jet", shading="gouraud"
     )
-    axs[0].set_ylabel("Frequency [Hz]")
-    axs[0].set_xlabel("Time [sec]")
-    fig.colorbar(img1, ax=axs[0], label="Intensity [dB]")
-    axs[0].grid(True)
+    ax1.set_ylabel("Frequency [Hz]")
+    ax1.grid(True)
+
+    # Add colorbar for Plot 1
+    cbar1 = fig.add_subplot(gs[0, 1])
+    fig.colorbar(img1, cax=cbar1, label="Intensity [dB]")
 
     # Plot 2: Normalized Spectrogram (using zero-mean normalization)
-    axs[1].set_title("Normalized Spectrogram (Zero-Mean Adjusted)")
-    img2 = axs[1].pcolormesh(
+    ax2 = fig.add_subplot(gs[1, 0])
+    ax2.set_title("Normalized Spectrogram (Zero-Mean Adjusted)")
+    img2 = ax2.pcolormesh(
         times, frequencies, normalized_spectrogram, cmap="jet", shading="gouraud"
     )
-    axs[1].set_ylabel("Frequency [Hz]")
-    axs[1].set_xlabel("Time [sec]")
-    fig.colorbar(img2, ax=axs[1], label="Intensity [dB]")
-    axs[1].grid(True)
+    ax2.set_ylabel("Frequency [Hz]")
+    ax2.grid(True)
+
+    # Add colorbar for Plot 2
+    cbar2 = fig.add_subplot(gs[1, 1])
+    fig.colorbar(img2, cax=cbar2, label="Intensity [dB]")
 
     # Plot 3: Acceleration over Time (Zero-Mean Adjusted)
-    axs[2].set_title("Acceleration over Time (Zero-Mean)")
-    axs[2].plot(total_time, zero_mean_signal, "g")
-    axs[2].set_xlabel("Time [sec]")
-    axs[2].set_ylabel("Acceleration [m/s^2]")
-    axs[2].grid(True)
+    ax3 = fig.add_subplot(gs[2, 0])
+    ax3.set_title("Acceleration over Time (Zero-Mean)")
+    ax3.plot(total_time, zero_mean_signal, "g")
+    ax3.set_xlabel("Time [sec]")
+    ax3.set_ylabel("Acceleration [m/s^2]")
+    ax3.grid(True)
 
-    # Adjust layout
+    # Align x-axes across all subplots
+    for ax in [ax1, ax2, ax3]:
+        ax.set_xlim([times.min(), times.max()])
+
+    # Tight layout without overlapping
     plt.tight_layout()
 
     # Save to file if save_path is provided
