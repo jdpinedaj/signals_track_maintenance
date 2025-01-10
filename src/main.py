@@ -71,7 +71,6 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
         frequencies_acc,
         times_acc,
         magnitude_spectrogram_acc,
-        X_prime_acc,
         total_time_acc,
         kilometer_ref_resampled,
     ) = short_term_fourier_transform_stft(
@@ -88,7 +87,6 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
         frequencies_acc,
         times_acc,
         magnitude_spectrogram_acc,
-        X_prime_acc,
         total_time_acc,
         signal_acc_mat,
         save_path=APPCFG.get_anomalies_filename(
@@ -144,9 +142,10 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
     distances_from_mean, threshold, anomalies_distance = identify_anomalies_distance(
         magnitude_spectrogram_acc
     )
+
     fig_distance = plot_clusters_and_anomalies_distance(
         x_axis=kilometer_ref_resampled,
-        anomalies=anomalies_kmeans,
+        anomalies=anomalies_distance,
         distances_from_mean=distances_from_mean,
         threshold=threshold,
         x_axis_label="Mileage traveled [km]",
@@ -160,7 +159,7 @@ def process_data_and_analyze(file_key: str, accel_key: str) -> None:
         anomalies_distance,
         times_acc,
         frequencies_acc,
-        kilometer_ref,
+        kilometer_ref_resampled,
         APPCFG.get_anomalies_filename(file_key=file_key, anomaly_type="distance"),
     )
 
