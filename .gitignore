@@ -68,7 +68,7 @@ __pycache__/
 .venv
 env/
 venv/
-.streamlit/
+.streamlit/secrets.toml
 
 # data
 data/*
