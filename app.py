@@ -2,6 +2,7 @@
 
 
 import streamlit as st
+from PIL import Image
 import os
 import numpy as np
 import pandas as pd
@@ -27,8 +28,14 @@ APPCFG = LoadConfig()
 
 
 def main():
+    # Load the image and resize it with a fixed height
+    original_image = Image.open("images/upv-logo.png")
+    fixed_height = 100  # Set your desired height
+    width_ratio = fixed_height / original_image.height
+    new_width = int(original_image.width * width_ratio)
+    resized_image = original_image.resize((new_width, fixed_height))
+    st.image(resized_image, use_container_width=False)
     st.title("Anomaly Detection for Railway Track Data")
-    st.image("images/upv-logo.png")
     st.divider()
 
     # Sidebar for File Upload and Acceleration Selection
