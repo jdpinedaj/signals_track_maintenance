@@ -3,7 +3,6 @@
 
 import streamlit as st
 from PIL import Image
-import os
 import numpy as np
 import pandas as pd
 from src.utils import (
@@ -19,8 +18,6 @@ from src.utils import (
     plot_clusters_and_anomalies_distance,
     plot_anomalies_streamlit,
 )
-from src.logs import logger
-
 from src.load_config import LoadConfig
 
 # Load configuration
