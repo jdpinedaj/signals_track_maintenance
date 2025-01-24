@@ -24,6 +24,20 @@ from src.load_config import LoadConfig
 APPCFG = LoadConfig()
 
 
+# Cache preprocessed data
+@st.cache_data
+def cached_preprocess_mat_data(file, accel_key):
+    try:
+        return preprocess_mat_data(
+            data_path=file,
+            acel_to_process=accel_key,
+            time_col_name="timestamp_s",
+            km_ref_col_name="kilometer_ref_fixed_km",
+        )
+    except Exception as e:
+        raise ValueError(f"Preprocessing failed: {e}")
+
+
 def main():
     # Load the image and resize it with a fixed height
     original_image = Image.open("images/upv-logo.png")
@@ -47,6 +61,11 @@ def main():
     )
     accel_key = accel_options[selected_accel]
 
+    # Button to clear cached data
+    if st.sidebar.button("Clear Cached Data"):
+        st.cache_data.clear()
+        st.success("Cache cleared!")
+
     # File upload validation
     if uploaded_file:
         st.session_state.uploaded_file = uploaded_file
@@ -65,11 +84,9 @@ def main():
             time_column_mat,
             kilometer_ref,
             df_mat,
-        ) = preprocess_mat_data(
-            data_path=uploaded_file,
-            acel_to_process=accel_key,
-            time_col_name="timestamp_s",
-            km_ref_col_name="kilometer_ref_fixed_km",
+        ) = cached_preprocess_mat_data(
+            file=uploaded_file,
+            accel_key=accel_key,
         )
         st.session_state.data = {
             "signal": signal_acc_mat,
