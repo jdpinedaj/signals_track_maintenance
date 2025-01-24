@@ -48,4 +48,4 @@ anomalies:
   percentile_kmeans: 98  # It means that the (100 - percentile_kmeans) of the data will be considered as anomalies
 
 dev_comments:
-  save_logs: True
+  save_logs: False
