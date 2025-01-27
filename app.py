@@ -5,6 +5,7 @@ import streamlit as st
 from PIL import Image
 import numpy as np
 import pandas as pd
+from typing import Tuple
 from src.utils import (
     preprocess_mat_data,
     short_term_fourier_transform_stft,
@@ -26,22 +27,42 @@ APPCFG = LoadConfig()
 
 # Cache preprocessed data
 @st.cache_data
-def cached_preprocess_mat_data(file, accel_key):
-    try:
-        return preprocess_mat_data(
-            data_path=file,
-            acel_to_process=accel_key,
-            time_col_name="timestamp_s",
-            km_ref_col_name="kilometer_ref_fixed_km",
-        )
-    except Exception as e:
-        raise ValueError(f"Preprocessing failed: {e}")
+def cached_preprocess_mat_data(file: str, accel_key: str) -> pd.DataFrame:
+    return preprocess_mat_data(
+        data_path=file,
+        acel_to_process=accel_key,
+        time_col_name="timestamp_s",
+        km_ref_col_name="kilometer_ref_fixed_km",
+    )
+
+
+@st.cache_data
+def cached_stft_analysis(
+    signal: np.ndarray, time_column: pd.Series, kilometer_ref: pd.Series
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    return short_term_fourier_transform_stft(
+        signal=signal,
+        sampling_frequency_stft=APPCFG.sampling_frequency_stft_prepared,
+        window_length=APPCFG.window_length,
+        overlap=APPCFG.overlap,
+        gamma=APPCFG.gamma,
+        time_column=time_column,
+        kilometer_ref=kilometer_ref,
+        nfft=APPCFG.nfft_prepared,
+    )
+
+
+@st.cache_data
+def cached_preprocess_and_reduce(
+    data: np.ndarray, n_components: int = 10
+) -> np.ndarray:
+    return preprocess_and_reduce(data, n_components=n_components)
 
 
 def main():
     # Load the image and resize it with a fixed height
     original_image = Image.open("images/upv-logo.png")
-    fixed_height = 100  # Set your desired height
+    fixed_height = 100
     width_ratio = fixed_height / original_image.height
     new_width = int(original_image.width * width_ratio)
     resized_image = original_image.resize((new_width, fixed_height))
@@ -61,10 +82,18 @@ def main():
     )
     accel_key = accel_options[selected_accel]
 
-    # Button to clear cached data
-    if st.sidebar.button("Clear Cached Data"):
+    # Automatically clear cache when new file or acceleration is selected
+    if (
+        "uploaded_file" in st.session_state
+        and uploaded_file != st.session_state.get("uploaded_file")
+    ) or (
+        "selected_accel" in st.session_state
+        and accel_key != st.session_state.get("selected_accel")
+    ):
         st.cache_data.clear()
-        st.success("Cache cleared!")
+        st.session_state.uploaded_file = uploaded_file
+        st.session_state.selected_accel = accel_key
+        st.success("Cache cleared due to new selection!")
 
     # File upload validation
     if uploaded_file:
@@ -100,13 +129,7 @@ def main():
         return
 
     # Tabs for Visualizations
-    (
-        tab1,
-        tab2,
-        tab3,
-        tab4,
-        # tab5,
-    ) = st.tabs(
+    tabs = st.tabs(
         [
             "Raw Data",
             "STFT Analysis",
@@ -117,7 +140,7 @@ def main():
     )
 
     # Tab 1: Raw Data
-    with tab1:
+    with tabs[0]:
         st.subheader("Raw Data Visualization")
         if "data" in st.session_state:
             st.dataframe(st.session_state.data["df"])
@@ -125,26 +148,24 @@ def main():
             st.warning("Data not available. Please process the uploaded file.")
 
     # Tab 2: STFT Analysis
-    with tab2:
+    with tabs[1]:
         st.subheader("Short-Term Fourier Transform (STFT)")
         if "signal" in st.session_state:
             try:
+                # Compute STFT
                 (
                     frequencies_acc,
                     times_acc,
                     magnitude_spectrogram_acc,
                     total_time_acc,
                     kilometer_ref_resampled,
-                ) = short_term_fourier_transform_stft(
+                ) = cached_stft_analysis(
                     signal=st.session_state.signal,
-                    sampling_frequency_stft=APPCFG.sampling_frequency_stft_prepared,
-                    window_length=APPCFG.window_length,
-                    overlap=APPCFG.overlap,
-                    gamma=APPCFG.gamma,
                     time_column=st.session_state.data["time_column"],
                     kilometer_ref=st.session_state.data["kilometer_ref"],
-                    nfft=APPCFG.nfft_prepared,
                 )
+
+                # Plot STFT
                 fig_stft = plot_stft_results_with_zero_mean(
                     frequencies_acc,
                     times_acc,
@@ -164,24 +185,33 @@ def main():
             st.warning("Signal data not available.")
 
     # Tab 3: KMeans Clustering
-    with tab3:
+    with tabs[2]:
         st.subheader("KMeans Clustering and Anomaly Detection")
         if "stft_data" in st.session_state:
             try:
                 stft_data = st.session_state.stft_data
-                reduced_features_scaled = preprocess_and_reduce(
-                    stft_data["magnitude_spectrogram"], n_components=10
+
+                # Perform dimensionality reduction
+                reduced_features_scaled = cached_preprocess_and_reduce(
+                    stft_data["magnitude_spectrogram"]
                 )
+
+                # Find optimal clusters
                 optimal_k = find_optimal_clusters(reduced_features_scaled, max_k=10)
+
+                # Apply MiniBatchKMeans
                 mbkmeans, labels = apply_MiniBatchKMeans(
                     reduced_features_scaled, optimal_k
                 )
+
+                # Identify anomalies using KMeans
                 anomalies_kmeans = identify_anomalies_kmeans(
                     reduced_features_scaled,
                     mbkmeans,
                     percentile=APPCFG.percentile_kmeans,
                 )
 
+                # Plot KMeans clusters and anomalies
                 fig_kmeans = plot_clusters_and_anomalies_kmeans(
                     x_axis=stft_data["kilometer_ref_resampled"],
                     data=reduced_features_scaled,
@@ -191,15 +221,18 @@ def main():
                 )
                 st.pyplot(fig_kmeans)
 
-                # Create DataFrame for KMeans anomalies using adjusted logic
+                # Create DataFrame for KMeans anomalies
                 anomaly_indices_kmeans = np.where(anomalies_kmeans)[0]
-                anomaly_times = times_acc[anomaly_indices_kmeans]
-                anomaly_frequencies = frequencies_acc[
-                    anomaly_indices_kmeans % len(frequencies_acc)
-                ]
                 anomaly_kilometers = stft_data["kilometer_ref_resampled"][
                     anomaly_indices_kmeans
                 ]
+                anomaly_frequencies = stft_data["frequencies"][
+                    anomaly_indices_kmeans % len(stft_data["frequencies"])
+                ]
+                anomaly_times = times_acc[anomaly_indices_kmeans]
+                # anomaly_frequencies = frequencies_acc[
+                #     anomaly_indices_kmeans % len(frequencies_acc)
+                # ]
 
                 # Create DataFrame for KMeans anomalies
                 kmeans_anomalies_df = pd.DataFrame(
@@ -211,10 +244,8 @@ def main():
                     }
                 )
 
-                # Display the DataFrame
+                # Display the DataFrame and provide a download button
                 st.dataframe(kmeans_anomalies_df)
-
-                # Add a download button
                 st.download_button(
                     label="Download KMeans Anomalies as CSV",
                     data=kmeans_anomalies_df.to_csv(index=False),
@@ -228,15 +259,18 @@ def main():
             st.warning("STFT data not available.")
 
     # Tab 4: Distance-Based Detection
-    with tab4:
+    with tabs[3]:
         st.subheader("Distance-Based Anomaly Detection")
         if "stft_data" in st.session_state:
             try:
                 stft_data = st.session_state.stft_data
+
+                # Identify anomalies based on distance
                 distances_from_mean, threshold, anomalies_distance = (
                     identify_anomalies_distance(stft_data["magnitude_spectrogram"])
                 )
 
+                # Plot Distance-Based anomalies
                 fig_distance = plot_clusters_and_anomalies_distance(
                     x_axis=stft_data["kilometer_ref_resampled"],
                     anomalies=anomalies_distance,
@@ -246,15 +280,18 @@ def main():
                 )
                 st.pyplot(fig_distance)
 
-                # Correct calculation of anomalies
+                # Create a DataFrame for Distance-Based anomalies
                 anomaly_indices_distance = np.where(anomalies_distance)[0]
-                anomaly_times = times_acc[anomaly_indices_distance]
-                anomaly_frequencies = frequencies_acc[
-                    anomaly_indices_distance % len(frequencies_acc)
-                ]
                 anomaly_kilometers = stft_data["kilometer_ref_resampled"][
                     anomaly_indices_distance
                 ]
+                # anomaly_frequencies = frequencies_acc[
+                #     anomaly_indices_distance % len(frequencies_acc)
+                # ]
+                anomaly_frequencies = stft_data["frequencies"][
+                    anomaly_indices_distance % len(stft_data["frequencies"])
+                ]
+                anomaly_times = times_acc[anomaly_indices_distance]
 
                 # Create DataFrame for Distance-Based anomalies
                 distance_anomalies_df = pd.DataFrame(
@@ -269,10 +306,8 @@ def main():
                     }
                 )
 
-                # Display the DataFrame
+                # Display the DataFrame and provide a download button
                 st.dataframe(distance_anomalies_df)
-
-                # Add a download button
                 st.download_button(
                     label="Download Distance-Based Anomalies as CSV",
                     data=distance_anomalies_df.to_csv(index=False),
@@ -287,7 +322,7 @@ def main():
 
     # TODO: Add anomaly visualization
     # # Tab 5: Anomaly Visualization
-    # with tab5:
+    # with tabs[4]:
     #     st.subheader("Anomaly Visualization")
     #     x_axis_option = st.radio(
     #         "Select X-Axis", ["Anomaly_Time", "Kilometer_Ref_Aligned"]
