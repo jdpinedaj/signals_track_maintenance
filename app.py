@@ -28,28 +28,32 @@ APPCFG = LoadConfig()
 # Cache preprocessed data
 @st.cache_data
 def cached_preprocess_mat_data(file: str, accel_key: str) -> pd.DataFrame:
-    return preprocess_mat_data(
+    _, signal, time_column, kilometer_ref, df = preprocess_mat_data(
         data_path=file,
         acel_to_process=accel_key,
         time_col_name="timestamp_s",
         km_ref_col_name="kilometer_ref_fixed_km",
     )
+    return signal, time_column, kilometer_ref, df
 
 
 @st.cache_data
 def cached_stft_analysis(
     signal: np.ndarray, time_column: pd.Series, kilometer_ref: pd.Series
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    return short_term_fourier_transform_stft(
-        signal=signal,
-        sampling_frequency_stft=APPCFG.sampling_frequency_stft_prepared,
-        window_length=APPCFG.window_length,
-        overlap=APPCFG.overlap,
-        gamma=APPCFG.gamma,
-        time_column=time_column,
-        kilometer_ref=kilometer_ref,
-        nfft=APPCFG.nfft_prepared,
+    frequencies, times, magnitude_spectrogram, total_time, km_ref_resampled = (
+        short_term_fourier_transform_stft(
+            signal=signal,
+            sampling_frequency_stft=APPCFG.sampling_frequency_stft_prepared,
+            window_length=APPCFG.window_length,
+            overlap=APPCFG.overlap,
+            gamma=APPCFG.gamma,
+            time_column=time_column,
+            kilometer_ref=kilometer_ref,
+            nfft=APPCFG.nfft_prepared,
+        )
     )
+    return frequencies, times, magnitude_spectrogram, total_time, km_ref_resampled
 
 
 @st.cache_data
@@ -108,7 +112,6 @@ def main():
     # Data Preprocessing
     try:
         (
-            data,
             signal_acc_mat,
             time_column_mat,
             kilometer_ref,
@@ -142,10 +145,7 @@ def main():
     # Tab 1: Raw Data
     with tabs[0]:
         st.subheader("Raw Data Visualization")
-        if "data" in st.session_state:
-            st.dataframe(st.session_state.data["df"])
-        else:
-            st.warning("Data not available. Please process the uploaded file.")
+        st.dataframe(st.session_state.data["df"])
 
     # Tab 2: STFT Analysis
     with tabs[1]:
@@ -164,6 +164,11 @@ def main():
                     time_column=st.session_state.data["time_column"],
                     kilometer_ref=st.session_state.data["kilometer_ref"],
                 )
+                st.session_state.stft_data = {
+                    "frequencies": frequencies_acc,
+                    "magnitude_spectrogram": magnitude_spectrogram_acc,
+                    "kilometer_ref_resampled": kilometer_ref_resampled,
+                }
 
                 # Plot STFT
                 fig_stft = plot_stft_results_with_zero_mean(
@@ -174,11 +179,7 @@ def main():
                     st.session_state.signal,
                 )
                 st.pyplot(fig_stft)
-                st.session_state.stft_data = {
-                    "frequencies": frequencies_acc,
-                    "magnitude_spectrogram": magnitude_spectrogram_acc,
-                    "kilometer_ref_resampled": kilometer_ref_resampled,
-                }
+
             except Exception as e:
                 st.error(f"Error during STFT analysis: {e}")
         else:
@@ -197,7 +198,7 @@ def main():
                 )
 
                 # Find optimal clusters
-                optimal_k = find_optimal_clusters(reduced_features_scaled, max_k=10)
+                optimal_k = find_optimal_clusters(reduced_features_scaled, max_k=7)
 
                 # Apply MiniBatchKMeans
                 mbkmeans, labels = apply_MiniBatchKMeans(
@@ -230,9 +231,6 @@ def main():
                     anomaly_indices_kmeans % len(stft_data["frequencies"])
                 ]
                 anomaly_times = times_acc[anomaly_indices_kmeans]
-                # anomaly_frequencies = frequencies_acc[
-                #     anomaly_indices_kmeans % len(frequencies_acc)
-                # ]
 
                 # Create DataFrame for KMeans anomalies
                 kmeans_anomalies_df = pd.DataFrame(
@@ -285,9 +283,6 @@ def main():
                 anomaly_kilometers = stft_data["kilometer_ref_resampled"][
                     anomaly_indices_distance
                 ]
-                # anomaly_frequencies = frequencies_acc[
-                #     anomaly_indices_distance % len(frequencies_acc)
-                # ]
                 anomaly_frequencies = stft_data["frequencies"][
                     anomaly_indices_distance % len(stft_data["frequencies"])
                 ]
