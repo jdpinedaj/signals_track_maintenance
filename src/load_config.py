@@ -39,6 +39,7 @@ class LoadConfig:
 
         Developer Comments:
             save_logs (bool): If True, logs are saved.
+            factor_to_downsample (int): Factor used to downsample data due to limited resources in Streamlit.
 
     Methods:
         __init__: Initializes the configuration by loading parameters from the configuration file.
@@ -112,6 +113,7 @@ class LoadConfig:
 
     def _load_dev_comments(self, config: Dict[str, Any]) -> None:
         self.save_logs = config["dev_comments"]["save_logs"]
+        self.factor_to_downsample = config["dev_comments"]["factor_to_downsample"]
 
     def _load_anomalies_params(self, config: Dict[str, Any]) -> None:
         anomalies = config["anomalies"]

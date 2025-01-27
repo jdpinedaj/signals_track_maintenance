@@ -18,6 +18,13 @@ from sklearn.preprocessing import StandardScaler
 from scipy.interpolate import interp1d
 import plotly.express as px
 import plotly.graph_objects as go
+import streamlit as st
+
+from src.load_config import LoadConfig
+
+
+# Load configuration
+APPCFG = LoadConfig()
 
 # New imports (test supervised contrastive learning)
 # import torch
@@ -56,6 +63,21 @@ def _load_mat_data(file_path: str, key: str = "datos_acel") -> np.ndarray:
     data = loadmat(file_path)
     signal = data[key].flatten()
     return signal
+
+
+def _downsample_signal(
+    signal: np.ndarray,
+    time_column: pd.Series,
+    kilometer_ref: pd.Series,
+    factor: int = APPCFG.factor_to_downsample,
+) -> Tuple[np.ndarray, pd.Series, pd.Series]:
+    """
+    Downsample the signal along with its corresponding metadata (time_column and kilometer_ref).
+    """
+    downsampled_signal = signal[::factor]
+    downsampled_time_column = time_column.iloc[::factor].reset_index(drop=True)
+    downsampled_kilometer_ref = kilometer_ref.iloc[::factor].reset_index(drop=True)
+    return downsampled_signal, downsampled_time_column, downsampled_kilometer_ref
 
 
 #!##########################################
@@ -981,6 +1003,73 @@ def plot_anomalies_streamlit(
     )
 
     return fig
+
+
+# Cache preprocessed data
+@st.cache_data
+def cached_preprocess_mat_data(file: str, accel_key: str) -> pd.DataFrame:
+    _, signal, time_column, kilometer_ref, df = preprocess_mat_data(
+        data_path=file,
+        acel_to_process=accel_key,
+        time_col_name="timestamp_s",
+        km_ref_col_name="kilometer_ref_fixed_km",
+    )
+    return signal, time_column, kilometer_ref, df
+
+
+@st.cache_data
+def cached_stft_analysis_optimized(
+    signal: np.ndarray,
+    time_column: pd.Series,
+    kilometer_ref: pd.Series,
+    factor: int = APPCFG.factor_to_downsample,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Perform STFT analysis on a downsampled dataset to improve efficiency.
+    """
+    # Downsample the signal and metadata
+    signal, time_column, kilometer_ref = _downsample_signal(
+        signal,
+        time_column,
+        kilometer_ref,
+    )
+
+    # Adjust sampling frequency to match downsampling
+    adjusted_sampling_frequency = APPCFG.sampling_frequency_stft_prepared / factor
+
+    # Perform STFT
+    frequencies, times, magnitude_spectrogram, total_time, km_ref_resampled = (
+        short_term_fourier_transform_stft(
+            signal=signal,
+            sampling_frequency_stft=adjusted_sampling_frequency,
+            window_length=APPCFG.window_length,
+            overlap=APPCFG.overlap,
+            gamma=APPCFG.gamma,
+            time_column=time_column,
+            kilometer_ref=kilometer_ref,
+            nfft=APPCFG.nfft_prepared,
+        )
+    )
+
+    # Debugging: Check dimensions of outputs
+    if magnitude_spectrogram.shape[1] != len(times):
+        raise ValueError(
+            f"Mismatch between spectrogram columns ({magnitude_spectrogram.shape[1]}) and times length ({len(times)})."
+        )
+
+    if magnitude_spectrogram.shape[0] != len(frequencies):
+        raise ValueError(
+            f"Mismatch between spectrogram rows ({magnitude_spectrogram.shape[0]}) and frequencies length ({len(frequencies)})."
+        )
+
+    return frequencies, times, magnitude_spectrogram, total_time, km_ref_resampled
+
+
+@st.cache_data
+def cached_preprocess_and_reduce(
+    data: np.ndarray, n_components: int = 10
+) -> np.ndarray:
+    return preprocess_and_reduce(data, n_components=n_components)
 
 
 # #! ---- NEW FUNCTIONS - TBD ----

@@ -5,12 +5,12 @@ import streamlit as st
 from PIL import Image
 import numpy as np
 import pandas as pd
-from typing import Tuple
 from src.utils import (
-    preprocess_mat_data,
-    short_term_fourier_transform_stft,
+    _downsample_signal,
+    cached_preprocess_mat_data,
+    cached_stft_analysis_optimized,
     plot_stft_results_with_zero_mean,
-    preprocess_and_reduce,
+    cached_preprocess_and_reduce,
     find_optimal_clusters,
     apply_MiniBatchKMeans,
     identify_anomalies_kmeans,
@@ -23,88 +23,6 @@ from src.load_config import LoadConfig
 
 # Load configuration
 APPCFG = LoadConfig()
-
-
-def _downsample_signal(
-    signal: np.ndarray,
-    time_column: pd.Series,
-    kilometer_ref: pd.Series,
-    factor: int = 10,
-) -> Tuple[np.ndarray, pd.Series, pd.Series]:
-    """
-    Downsample the signal along with its corresponding metadata (time_column and kilometer_ref).
-    """
-    downsampled_signal = signal[::factor]
-    downsampled_time_column = time_column.iloc[::factor].reset_index(drop=True)
-    downsampled_kilometer_ref = kilometer_ref.iloc[::factor].reset_index(drop=True)
-    return downsampled_signal, downsampled_time_column, downsampled_kilometer_ref
-
-
-# Cache preprocessed data
-@st.cache_data
-def cached_preprocess_mat_data(file: str, accel_key: str) -> pd.DataFrame:
-    _, signal, time_column, kilometer_ref, df = preprocess_mat_data(
-        data_path=file,
-        acel_to_process=accel_key,
-        time_col_name="timestamp_s",
-        km_ref_col_name="kilometer_ref_fixed_km",
-    )
-    return signal, time_column, kilometer_ref, df
-
-
-@st.cache_data
-def cached_stft_analysis_optimized(
-    signal: np.ndarray,
-    time_column: pd.Series,
-    kilometer_ref: pd.Series,
-    factor: int = 10,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Perform STFT analysis on a downsampled dataset to improve efficiency.
-    """
-    # Downsample the signal and metadata
-    signal, time_column, kilometer_ref = _downsample_signal(
-        signal,
-        time_column,
-        kilometer_ref,
-    )
-
-    # Adjust sampling frequency to match downsampling
-    adjusted_sampling_frequency = APPCFG.sampling_frequency_stft_prepared / factor
-
-    # Perform STFT
-    frequencies, times, magnitude_spectrogram, total_time, km_ref_resampled = (
-        short_term_fourier_transform_stft(
-            signal=signal,
-            sampling_frequency_stft=adjusted_sampling_frequency,
-            window_length=APPCFG.window_length,
-            overlap=APPCFG.overlap,
-            gamma=APPCFG.gamma,
-            time_column=time_column,
-            kilometer_ref=kilometer_ref,
-            nfft=APPCFG.nfft_prepared,
-        )
-    )
-
-    # Debugging: Check dimensions of outputs
-    if magnitude_spectrogram.shape[1] != len(times):
-        raise ValueError(
-            f"Mismatch between spectrogram columns ({magnitude_spectrogram.shape[1]}) and times length ({len(times)})."
-        )
-
-    if magnitude_spectrogram.shape[0] != len(frequencies):
-        raise ValueError(
-            f"Mismatch between spectrogram rows ({magnitude_spectrogram.shape[0]}) and frequencies length ({len(frequencies)})."
-        )
-
-    return frequencies, times, magnitude_spectrogram, total_time, km_ref_resampled
-
-
-@st.cache_data
-def cached_preprocess_and_reduce(
-    data: np.ndarray, n_components: int = 10
-) -> np.ndarray:
-    return preprocess_and_reduce(data, n_components=n_components)
 
 
 def main():
@@ -211,11 +129,6 @@ def main():
                     kilometer_ref=st.session_state.data["kilometer_ref"],
                 )
 
-                # cached_stft_analysis(
-                #     signal=st.session_state.signal,
-                #     time_column=st.session_state.data["time_column"],
-                #     kilometer_ref=st.session_state.data["kilometer_ref"],
-                # )
                 st.session_state.stft_data = {
                     "frequencies": frequencies_acc,
                     "magnitude_spectrogram": magnitude_spectrogram_acc,
@@ -229,10 +142,10 @@ def main():
                     st.session_state.data["kilometer_ref"],
                 )
 
-                st.write(f"Downsampled signal shape: {downsampled_signal.shape}")
-                st.write(f"Frequencies shape: {frequencies_acc.shape}")
-                st.write(f"Times shape: {times_acc.shape}")
-                st.write(f"Spectrogram shape: {magnitude_spectrogram_acc.shape}")
+                # st.write(f"Downsampled signal shape: {downsampled_signal.shape}")
+                # st.write(f"Frequencies shape: {frequencies_acc.shape}")
+                # st.write(f"Times shape: {times_acc.shape}")
+                # st.write(f"Spectrogram shape: {magnitude_spectrogram_acc.shape}")
 
                 # Plot STFT
                 fig_stft = plot_stft_results_with_zero_mean(
